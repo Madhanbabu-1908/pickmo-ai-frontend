@@ -9,7 +9,8 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Sparkles
+  Sparkles,
+  Trash2   // <-- added
 } from 'lucide-react';
 import { useState } from 'react';
 
@@ -22,6 +23,7 @@ export default function Sidebar({
   onSelectHelp, 
   onSelectSuggestion, 
   onSelectDownload,
+  onClearHistory,      // <-- added prop
   isCollapsed,
   onToggleCollapse
 }) {
@@ -128,6 +130,12 @@ export default function Sidebar({
         <NavButton icon={Download} label="Download App" onClick={() => {
           onSelectDownload();
           setIsMobileOpen(false);
+        }} isCollapsed={isCollapsed} />
+        <NavButton icon={Trash2} label="Clear All Chats" onClick={() => {
+          if (window.confirm('Delete all chat history? This cannot be undone.')) {
+            onClearHistory();
+            setIsMobileOpen(false);
+          }
         }} isCollapsed={isCollapsed} />
       </div>
     </div>
