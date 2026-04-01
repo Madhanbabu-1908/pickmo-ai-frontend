@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build Windows EXE
-    runs-on: windows-latest   # native Windows runner
+    runs-on: windows-latest
 
     steps:
       - name: Checkout code
@@ -36,11 +36,11 @@ jobs:
           name: windows-portable
           path: dist-electron/win-unpacked/Pickmo.ai.exe
 
-      - name: Build Windows installer (NSIS)
-        run: npx electron-builder --win --x64
+      - name: Build Windows installer (NSIS) – no publishing
+        run: npx electron-builder --win --x64 --publish=never
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: windows-installer
-          path: dist-electron/Pickmo.ai Setup.exe
+          path: dist-electron/Pickmo.ai Setup*.exe
