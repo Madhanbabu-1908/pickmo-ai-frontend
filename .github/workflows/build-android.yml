@@ -36,9 +36,11 @@ jobs:
           cd frontend
           npm install
       
-      - name: Build React app
+      - name: Build React app (with production backend URL)
         run: |
           cd frontend
+          # Set the backend URL for the build
+          export VITE_API_URL=https://pickmo-ai.onrender.com/api
           npm run build
       
       - name: Sync Capacitor
