@@ -116,6 +116,18 @@ function App() {
     setUseRAG(false);
   };
 
+  // Clear all chat history
+  const clearAllChats = () => {
+    if (window.confirm('Are you sure you want to delete all chat history? This cannot be undone.')) {
+      setChats([{ id: '1', title: 'New conversation', messages: [] }]);
+      setActiveChatId('1');
+      setActiveView('chat');
+      setUseRAG(false);
+      // Also clear generated documents from Resources
+      localStorage.removeItem('generatedDocuments');
+    }
+  };
+
   const updateChatMessages = (chatId, updater) => {
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: updater(c.messages) } : c));
   };
@@ -134,6 +146,7 @@ function App() {
         onSelectHelp={() => setActiveView('help')}
         onSelectSuggestion={() => setActiveView('suggestion')}
         onSelectDownload={() => setActiveView('download')}
+        onClearHistory={clearAllChats}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
