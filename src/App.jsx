@@ -17,7 +17,6 @@ function App() {
     const saved = localStorage.getItem('chatHistory');
     if (saved) {
       const parsed = JSON.parse(saved);
-      // Ensure all messages have unique IDs
       return parsed.map(chat => ({
         ...chat,
         messages: chat.messages.map(msg => ({
@@ -36,14 +35,19 @@ function App() {
   const [activeView, setActiveView] = useState('chat');
   const [useRAG, setUseRAG] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [loadingModels, setLoadingModels] = useState(true);
 
   useEffect(() => {
     axios.get(`${API_URL}/models`).then(res => {
+      console.log('Dynamic models loaded:', res.data);
       setModels(res.data);
-      const textModels = res.data.filter(m => !m.type);
-      if (textModels.length) setSelectedModel(textModels[0].id);
+      // Include text models AND vision models
+      const usableModels = res.data.filter(m => !m.type || m.type === 'vision');
+      if (usableModels.length) setSelectedModel(usableModels[0].id);
+      setLoadingModels(false);
     }).catch(err => {
       console.error('Failed to load models:', err);
+      setLoadingModels(false);
     });
   }, []);
 
@@ -51,15 +55,15 @@ function App() {
     localStorage.setItem('chatHistory', JSON.stringify(chats));
   }, [chats]);
 
-  // ========== CRITICAL FIX ==========
-  // This function now removes the 'id' property from messages before sending to API
-  const sendMessageStream = async (userMessage, onChunk, onError) => {
+  // Updated to accept userContent as string or array (multimodal)
+  const sendMessageStream = async (userContent, onChunk, onError) => {
     const activeChat = chats.find(c => c.id === activeChatId);
     let context = '';
     
-    if (useRAG) {
+    // RAG only works with plain text; if userContent is array (has images), skip RAG
+    if (useRAG && typeof userContent === 'string') {
       try {
-        const ragRes = await axios.post(`${API_URL}/rag/search`, { query: userMessage });
+        const ragRes = await axios.post(`${API_URL}/rag/search`, { query: userContent });
         if (ragRes.data.length) {
           context = "Use the following documents to answer:\n" + ragRes.data.map(d => d.text).join('\n\n');
         }
@@ -68,23 +72,17 @@ function App() {
       }
     }
     
-    // CRITICAL: Remove 'id' property from messages for API
-    // Map each message to only include role and content
+    // Build messages array from chat history (preserve existing messages)
     const cleanMessages = activeChat.messages
       .filter(msg => msg && msg.content && msg.content.length > 0)
-      .map(msg => ({
-        role: msg.role,
-        content: msg.content
-        // 'id' property is EXCLUDED here
-      }));
+      .map(msg => ({ role: msg.role, content: msg.content }));
     
-    // Add context if RAG is enabled
     if (context) {
       cleanMessages.push({ role: 'system', content: context });
     }
     
-    // Add the new user message
-    cleanMessages.push({ role: 'user', content: userMessage });
+    // Add the new user content (can be string or array)
+    cleanMessages.push({ role: 'user', content: userContent });
     
     try {
       const response = await fetch(`${API_URL}/chat/stream`, {
@@ -92,7 +90,7 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           modelId: selectedModel, 
-          messages: cleanMessages  // Now without 'id' property
+          messages: cleanMessages
         })
       });
       const reader = response.body.getReader();
@@ -106,7 +104,6 @@ function App() {
       onError(err);
     }
   };
-  // ========== END FIX ==========
 
   const newChat = () => {
     const newId = Date.now().toString();
@@ -116,14 +113,12 @@ function App() {
     setUseRAG(false);
   };
 
-  // Clear all chat history
   const clearAllChats = () => {
     if (window.confirm('Are you sure you want to delete all chat history? This cannot be undone.')) {
       setChats([{ id: '1', title: 'New conversation', messages: [] }]);
       setActiveChatId('1');
       setActiveView('chat');
       setUseRAG(false);
-      // Also clear generated documents from Resources
       localStorage.removeItem('generatedDocuments');
     }
   };
@@ -133,7 +128,19 @@ function App() {
   };
 
   const activeChat = chats.find(c => c.id === activeChatId) || { messages: [] };
-  const textModels = models.filter(m => !m.type);
+  // Include both text and vision models
+  const usableModels = models.filter(m => !m.type || m.type === 'vision');
+
+  if (loadingModels) {
+    return (
+      <div className="flex h-screen bg-gray-900 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading available models...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 text-white overflow-hidden">
@@ -154,7 +161,7 @@ function App() {
         {activeView === 'chat' && (
           <>
             <ModelSelector 
-              models={textModels} 
+              models={usableModels} 
               selected={selectedModel} 
               onChange={setSelectedModel}
             />
