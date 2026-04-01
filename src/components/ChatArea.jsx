@@ -2,12 +2,13 @@ import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check, Bot, User, BookOpen, Edit2, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import axios from 'axios';
-import { maskPersonalInfo } from './privacy'; // adjust path if needed
+import { maskPersonalInfo } from './privacy';
 
 export default function ChatArea({ messages, onSendStream, chatId, updateChatMessages, apiUrl, useRAG, setUseRAG }) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [attachedFiles, setAttachedFiles] = useState([]);
+  const [attachedFiles, setAttachedFiles] = useState([]); // text files for RAG
+  const [attachedImages, setAttachedImages] = useState([]); // images for vision
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
@@ -36,6 +37,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     }
   }, [editingMessageId]);
 
+  // Handle file upload: text files go to RAG, images go to attachedImages
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -43,31 +45,41 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     setUploadingFiles(true);
     
     for (const file of files) {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const content = event.target.result;
-        
-        try {
-          await axios.post(`${apiUrl}/rag/upload`, {
-            text: content,
-            name: file.name
-          });
-          
-          setAttachedFiles(prev => [...prev, {
+      if (file.type.startsWith('image/')) {
+        // Image: read as base64 and store in attachedImages
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          setAttachedImages(prev => [...prev, {
             id: Date.now(),
             name: file.name,
-            size: file.size,
-            content: content.substring(0, 500)
+            data: event.target.result,
+            type: file.type
           }]);
-          
-          if (!useRAG) {
-            setUseRAG(true);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        // Text file: read as text and upload to RAG
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const content = event.target.result;
+          try {
+            await axios.post(`${apiUrl}/rag/upload`, {
+              text: content,
+              name: file.name
+            });
+            setAttachedFiles(prev => [...prev, {
+              id: Date.now(),
+              name: file.name,
+              size: file.size,
+              content: content.substring(0, 500)
+            }]);
+            if (!useRAG) setUseRAG(true);
+          } catch (err) {
+            console.error('Upload failed:', err);
           }
-        } catch (err) {
-          console.error('Upload failed:', err);
-        }
-      };
-      reader.readAsText(file);
+        };
+        reader.readAsText(file);
+      }
     }
     
     setUploadingFiles(false);
@@ -76,12 +88,14 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
   const removeAttachment = (fileId) => {
     setAttachedFiles(prev => prev.filter(f => f.id !== fileId));
-    if (attachedFiles.length === 1) {
-      setUseRAG(false);
-    }
+    if (attachedFiles.length === 1) setUseRAG(false);
   };
 
-  // Edit message functions
+  const removeImage = (id) => {
+    setAttachedImages(prev => prev.filter(img => img.id !== id));
+  };
+
+  // Edit message functions (unchanged)
   const startEditMessage = (messageId, currentContent) => {
     setEditingMessageId(messageId);
     setEditingContent(currentContent);
@@ -94,12 +108,9 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
   const saveEditAndResend = async (messageId, originalContent) => {
     if (!editingContent.trim()) return;
-    
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
-    
     const updatedMessages = messages.slice(0, messageIndex);
-    
     const editedMessage = {
       ...messages[messageIndex],
       id: Date.now(),
@@ -107,17 +118,12 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       edited: true,
       originalContent: originalContent
     };
-    
     updatedMessages.push(editedMessage);
     updateChatMessages(chatId, () => updatedMessages);
-    
     setEditingMessageId(null);
     setEditingContent('');
-    
     setIsStreaming(true);
-    
     updateChatMessages(chatId, (prev) => [...prev, { role: 'assistant', content: '', id: Date.now() + 1 }]);
-    
     let fullContent = '';
     await onSendStream(editingContent, 
       (chunk) => {
@@ -145,50 +151,70 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         });
       }
     );
-    
     setIsStreaming(false);
   };
 
-  // Delete message and all subsequent messages
   const deleteMessageAndAfter = (messageId) => {
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
-    
     const updatedMessages = messages.slice(0, messageIndex);
     updateChatMessages(chatId, () => updatedMessages);
   };
 
+  // Main submit handler: builds multimodal content array if images are present
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if ((!input.trim() && attachedFiles.length === 0) || isStreaming) return;
+    if ((!input.trim() && attachedFiles.length === 0 && attachedImages.length === 0) || isStreaming) return;
     
     const userMsg = input;
-    // Mask personal information before sending
     const sanitizedUserMsg = maskPersonalInfo(userMsg);
-    
     setInput('');
     
-    let fullUserMessage = sanitizedUserMsg;
+    // Build content array for multimodal message
+    const contentArray = [];
+    if (sanitizedUserMsg.trim()) contentArray.push({ type: 'text', text: sanitizedUserMsg });
+    for (const img of attachedImages) {
+      contentArray.push({ type: 'image_url', image_url: { url: img.data } });
+    }
+    
+    // If there are RAG text files, we need to incorporate them – but the API expects either plain text or an array.
+    // We'll handle two cases:
+    // 1. No images: send plain text with RAG context (if any)
+    // 2. With images: send the content array; if RAG context exists, we add it as an extra text part.
+    let finalUserContent;
     if (attachedFiles.length > 0) {
       const fileContext = attachedFiles.map(f => 
         `[Attached Document: ${f.name}]\nContent Preview: ${f.content}\n`
       ).join('\n');
-      fullUserMessage = `${fileContext}\n\n${sanitizedUserMsg || 'Please analyze these documents.'}`;
+      const ragText = `${fileContext}\n\n${sanitizedUserMsg || 'Please analyze these documents.'}`;
+      if (attachedImages.length > 0) {
+        // Prepend RAG context as a text part
+        contentArray.unshift({ type: 'text', text: ragText });
+        finalUserContent = contentArray;
+      } else {
+        finalUserContent = ragText;
+      }
+      if (!useRAG) setUseRAG(true);
+    } else {
+      finalUserContent = contentArray.length === 1 && contentArray[0].type === 'text'
+        ? contentArray[0].text
+        : contentArray;
     }
     
     setIsStreaming(true);
     
+    // Display message in UI (simple representation)
+    const displayText = userMsg || (attachedImages.length ? `📷 Image(s) attached` : '');
     const newUserMessage = { 
       id: Date.now(),
       role: 'user', 
-      content: userMsg || `📎 Attached: ${attachedFiles.map(f => f.name).join(', ')}` 
+      content: displayText 
     };
-    
     updateChatMessages(chatId, (prev) => [...prev, newUserMessage]);
     updateChatMessages(chatId, (prev) => [...prev, { role: 'assistant', content: '', id: Date.now() + 1 }]);
     
     let fullContent = '';
-    await onSendStream(fullUserMessage, 
+    await onSendStream(finalUserContent, 
       (chunk) => {
         fullContent += chunk;
         updateChatMessages(chatId, (prev) => {
@@ -216,6 +242,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     );
     
     setAttachedFiles([]);
+    setAttachedImages([]);
     setIsStreaming(false);
   };
 
@@ -231,9 +258,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       e.preventDefault();
       saveEditAndResend(editingMessageId, editingContent);
     }
-    if (e.key === 'Escape') {
-      cancelEdit();
-    }
+    if (e.key === 'Escape') cancelEdit();
   };
 
   const copyToClipboard = (text, index) => {
@@ -290,7 +315,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                 Pickmo.ai
               </h1>
               <p className="text-gray-400 text-lg mb-8 max-w-md mx-auto">
-                Your intelligent AI assistant. Upload documents or start a conversation.
+                Your intelligent AI assistant. Upload documents or images, or start a conversation.
               </p>
               <div className="flex flex-wrap gap-3 justify-center">
                 <SuggestionChip onClick={() => setInput("What can you help me with?")} icon="💬" text="What can you help me with?" />
@@ -304,7 +329,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                 <div className="flex items-center gap-3">
                   <Paperclip size={20} className="text-blue-400" />
                   <p className="text-sm text-gray-300">
-                    Upload a document and I'll answer questions about it!
+                    Upload a document or image and I'll analyze it!
                   </p>
                 </div>
               </div>
@@ -437,7 +462,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         </div>
       </div>
 
-      {/* Attachments Preview */}
+      {/* Attachments Preview: Text Files */}
       {attachedFiles.length > 0 && (
         <div className="border-t border-gray-800 px-4 py-2 bg-gray-900/50">
           <div className="max-w-3xl mx-auto">
@@ -450,7 +475,28 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                     onClick={() => removeAttachment(file.id)}
                     className="text-gray-400 hover:text-red-400 transition"
                   >
-                    <X size={14} />
+            <X size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Preview */}
+      {attachedImages.length > 0 && (
+        <div className="border-t border-gray-800 px-4 py-2 bg-gray-900/50">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex flex-wrap gap-2">
+              {attachedImages.map(img => (
+                <div key={img.id} className="relative group">
+                  <img src={img.data} alt={img.name} className="h-16 w-16 object-cover rounded-lg border border-gray-700" />
+                  <button
+                    onClick={() => removeImage(img.id)}
+                    className="absolute -top-1 -right-1 bg-red-600 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
+                  >
+                    <X size={12} />
                   </button>
                 </div>
               ))}
@@ -469,7 +515,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={attachedFiles.length > 0 ? "Ask about your uploaded document..." : "Message Pickmo.ai... (Hover over your messages to Edit or Delete)"}
+              placeholder={attachedFiles.length > 0 ? "Ask about your uploaded document..." : (attachedImages.length > 0 ? "Ask about your image(s)..." : "Message Pickmo.ai... (Hover over your messages to Edit or Delete, attach images for vision models)")}
               disabled={isStreaming}
               className="w-full bg-gray-800/50 rounded-2xl px-5 py-4 pr-24 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none text-white placeholder-gray-400 border border-gray-700 focus:border-transparent transition-all duration-200"
               style={{ maxHeight: '120px' }}
@@ -480,27 +526,23 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isStreaming || uploadingFiles}
                 className="p-2 text-gray-400 hover:text-blue-400 transition disabled:opacity-50 rounded-lg hover:bg-gray-700/50"
-                title="Attach document for RAG"
+                title="Attach document or image"
               >
                 {uploadingFiles ? <Loader2 size={18} className="animate-spin" /> : <Paperclip size={18} />}
               </button>
               <button 
                 type="submit" 
-                disabled={isStreaming || (!input.trim() && attachedFiles.length === 0)}
+                disabled={isStreaming || (!input.trim() && attachedFiles.length === 0 && attachedImages.length === 0)}
                 className="p-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-all duration-200"
               >
-                {isStreaming ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  <Send size={18} />
-                )}
+                {isStreaming ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
               </button>
             </div>
             <input
               ref={fileInputRef}
               type="file"
               multiple
-              accept=".txt,.md,.pdf,.doc,.docx"
+              accept=".txt,.md,.pdf,.doc,.docx,image/*"
               onChange={handleFileUpload}
               className="hidden"
               disabled={isStreaming}
@@ -516,6 +558,9 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
               <span>⚠️</span>
               <span>For privacy, don't share sensitive info. Your chat stays on this device.</span>
             </div>
+          </div>
+          <div className="text-xs text-gray-500 text-center mt-1">
+            📎 Upload .txt, .md, or images for vision models (Gemini 2.0 Flash, etc.)
           </div>
         </div>
       </div>
