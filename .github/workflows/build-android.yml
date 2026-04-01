@@ -31,25 +31,29 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
       
-      - name: Install dependencies
-        run: |
-          cd frontend
-          npm install
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses
       
-      - name: Build React app (with production backend URL)
+      - name: Install dependencies
+        run: npm install
+      
+      - name: Build React app with production backend URL
         run: |
-          cd frontend
           export VITE_API_URL=https://pickmo-ai.onrender.com/api
           npm run build
       
-      - name: Sync Capacitor
+      - name: Add Android platform (if needed)
         run: |
-          cd frontend
-          npx cap sync
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+      
+      - name: Sync Capacitor
+        run: npx cap sync
       
       - name: Build Debug APK
         run: |
-          cd frontend/android
+          cd android
           chmod +x gradlew
           ./gradlew assembleDebug
       
@@ -57,4 +61,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
