@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check, Bot, User, BookOpen, Edit2, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import axios from 'axios';
+import { maskPersonalInfo } from './privacy'; // adjust path if needed
 
 export default function ChatArea({ messages, onSendStream, chatId, updateChatMessages, apiUrl, useRAG, setUseRAG }) {
   const [input, setInput] = useState('');
@@ -82,7 +83,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
   // Edit message functions
   const startEditMessage = (messageId, currentContent) => {
-    console.log('Editing message:', messageId); // Debug log
     setEditingMessageId(messageId);
     setEditingContent(currentContent);
   };
@@ -95,20 +95,14 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
   const saveEditAndResend = async (messageId, originalContent) => {
     if (!editingContent.trim()) return;
     
-    // Find the message index
     const messageIndex = messages.findIndex(m => m.id === messageId);
-    if (messageIndex === -1) {
-      console.error('Message not found:', messageId);
-      return;
-    }
+    if (messageIndex === -1) return;
     
-    // Remove all messages after this one (including the response)
     const updatedMessages = messages.slice(0, messageIndex);
     
-    // Update the edited message with a new ID to avoid conflicts
     const editedMessage = {
       ...messages[messageIndex],
-      id: Date.now(), // New unique ID
+      id: Date.now(),
       content: editingContent,
       edited: true,
       originalContent: originalContent
@@ -117,14 +111,11 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     updatedMessages.push(editedMessage);
     updateChatMessages(chatId, () => updatedMessages);
     
-    // Clear editing state
     setEditingMessageId(null);
     setEditingContent('');
     
-    // Resend the edited message to get new response
     setIsStreaming(true);
     
-    // Add placeholder for assistant response
     updateChatMessages(chatId, (prev) => [...prev, { role: 'assistant', content: '', id: Date.now() + 1 }]);
     
     let fullContent = '';
@@ -172,14 +163,17 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     if ((!input.trim() && attachedFiles.length === 0) || isStreaming) return;
     
     const userMsg = input;
+    // Mask personal information before sending
+    const sanitizedUserMsg = maskPersonalInfo(userMsg);
+    
     setInput('');
     
-    let fullUserMessage = userMsg;
+    let fullUserMessage = sanitizedUserMsg;
     if (attachedFiles.length > 0) {
       const fileContext = attachedFiles.map(f => 
         `[Attached Document: ${f.name}]\nContent Preview: ${f.content}\n`
       ).join('\n');
-      fullUserMessage = `${fileContext}\n\n${userMsg || 'Please analyze these documents.'}`;
+      fullUserMessage = `${fileContext}\n\n${sanitizedUserMsg || 'Please analyze these documents.'}`;
     }
     
     setIsStreaming(true);
@@ -336,7 +330,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                 
                 <div className={`flex-1 max-w-[85%] ${isUserMessage ? 'order-1' : ''}`}>
                   {isEditing ? (
-                    // Edit Mode - Only shows for the specific message being edited
+                    // Edit Mode
                     <div className="bg-gray-800 rounded-2xl p-3 border border-blue-500/50">
                       <textarea
                         ref={editTextareaRef}
@@ -365,7 +359,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                       </div>
                     </div>
                   ) : (
-                    // Normal Message View
                     <>
                       <div className={`rounded-2xl px-5 py-3 ${
                         isUserMessage 
@@ -389,7 +382,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                         )}
                       </div>
                       
-                      {/* Action Buttons - Only show on hover for the specific message */}
+                      {/* Action Buttons */}
                       <div className="flex gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         {isUserMessage && (
                           <>
@@ -519,9 +512,9 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
               <span className="text-gray-600">•</span>
               <span><kbd className="px-1.5 py-0.5 bg-gray-800 rounded text-xs">Shift+Enter</kbd> for new line</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Edit2 size={12} />
-              <span>Hover messages to Edit/Delete</span>
+            <div className="flex items-center gap-2 text-yellow-500">
+              <span>⚠️</span>
+              <span>For privacy, don't share sensitive info. Your chat stays on this device.</span>
             </div>
           </div>
         </div>
