@@ -9,7 +9,7 @@ on:
 jobs:
   build:
     name: Build Windows EXE
-    runs-on: ubuntu-latest
+    runs-on: windows-latest   # native Windows runner
 
     steps:
       - name: Checkout code
@@ -20,9 +20,6 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-
-      - name: Install Wine (for cross-compilation)
-        run: sudo apt-get update && sudo apt-get install -y wine
 
       - name: Install dependencies
         run: npm install
