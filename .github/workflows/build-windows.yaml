@@ -1,0 +1,46 @@
+name: Build Windows App
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Windows EXE
+    runs-on: ubuntu-latest   # free Linux runner, cross‑compiles Windows
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build React app
+        run: npm run build
+
+      - name: Build Windows executable (portable)
+        run: npx electron-builder --win --x64 --dir
+
+      - name: Upload Windows portable executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-portable
+          path: dist-electron/win-unpacked/Pickmo.ai.exe
+
+      - name: Build Windows installer (NSIS)
+        run: npx electron-builder --win --x64
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: dist-electron/Pickmo.ai Setup.exe
