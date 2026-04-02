@@ -106,6 +106,27 @@ html {
   margin: 0.75rem 0;
 }
 
+/* Table styling – ensures tables scroll horizontally on small screens */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  white-space: nowrap;
+  border-collapse: collapse;
+  margin: 0.75rem 0;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid #4b5563;
+  padding: 0.5rem 1rem;
+  text-align: left;
+}
+
+.prose th {
+  background: #1f2937;
+  font-weight: 600;
+}
+
 /* Glassmorphism Effects */
 .glass {
   background: rgba(17, 24, 39, 0.7);
