@@ -1,29 +1,41 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check, Bot, User, BookOpen, Edit2, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check, Bot, User, BookOpen, Edit2, Trash2, CheckCircle, XCircle, Trash } from 'lucide-react';
 import axios from 'axios';
 import { maskPersonalInfo } from './privacy';
 
 export default function ChatArea({ messages, onSendStream, chatId, updateChatMessages, apiUrl, useRAG, setUseRAG }) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [attachedFiles, setAttachedFiles] = useState([]);      // text files for RAG
-  const [attachedImages, setAttachedImages] = useState([]);    // images for vision
+  const [attachedImages, setAttachedImages] = useState([]);
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState(null);
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editingContent, setEditingContent] = useState('');
+  const [contextDocuments, setContextDocuments] = useState([]);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const editTextareaRef = useRef(null);
 
-  // Auto‑scroll to bottom when new messages arrive
+  // Load context documents from backend for this chat
+  const loadContextDocuments = async () => {
+    try {
+      const res = await axios.get(`${apiUrl}/rag/documents/${chatId}`);
+      if (res.data) setContextDocuments(res.data);
+    } catch (err) {
+      console.error('Failed to load context docs:', err);
+    }
+  };
+
+  useEffect(() => {
+    loadContextDocuments();
+  }, [chatId]);
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Auto‑resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -31,7 +43,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     }
   }, [input]);
 
-  // Auto‑focus edit textarea
   useEffect(() => {
     if (editTextareaRef.current && editingMessageId) {
       editTextareaRef.current.style.height = 'auto';
@@ -40,7 +51,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     }
   }, [editingMessageId]);
 
-  // Handle file upload (text files + images)
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
@@ -49,7 +59,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
     for (const file of files) {
       if (file.type.startsWith('image/')) {
-        // Image: read as base64 and store
         const reader = new FileReader();
         reader.onload = (event) => {
           setAttachedImages(prev => [...prev, {
@@ -61,21 +70,16 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         };
         reader.readAsDataURL(file);
       } else {
-        // Text file: read as text and upload to RAG
         const reader = new FileReader();
         reader.onload = async (event) => {
           const content = event.target.result;
           try {
             await axios.post(`${apiUrl}/rag/upload`, {
               text: content,
-              name: file.name
-            });
-            setAttachedFiles(prev => [...prev, {
-              id: Date.now(),
               name: file.name,
-              size: file.size,
-              content: content.substring(0, 500)
-            }]);
+              chatId: chatId
+            });
+            loadContextDocuments(); // refresh the list
             if (!useRAG) setUseRAG(true);
           } catch (err) {
             console.error('Upload failed:', err);
@@ -89,16 +93,32 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     fileInputRef.current.value = '';
   };
 
-  const removeAttachment = (fileId) => {
-    setAttachedFiles(prev => prev.filter(f => f.id !== fileId));
-    if (attachedFiles.length === 1) setUseRAG(false);
+  const removeContextDocument = async (docId) => {
+    try {
+      await axios.delete(`${apiUrl}/rag/document/${chatId}/${docId}`);
+      loadContextDocuments();
+      if (contextDocuments.length === 1) setUseRAG(false);
+    } catch (err) {
+      console.error('Failed to delete document:', err);
+    }
+  };
+
+  const clearAllContextDocs = async () => {
+    if (window.confirm('Remove all documents from context? They will remain in Resources but will not be used for current conversation.')) {
+      try {
+        await axios.delete(`${apiUrl}/rag/delete/${chatId}`);
+        setContextDocuments([]);
+        setUseRAG(false);
+      } catch (err) {
+        console.error('Failed to clear documents:', err);
+      }
+    }
   };
 
   const removeImage = (id) => {
     setAttachedImages(prev => prev.filter(img => img.id !== id));
   };
 
-  // Edit message functions
   const startEditMessage = (messageId, currentContent) => {
     setEditingMessageId(messageId);
     setEditingContent(currentContent);
@@ -157,7 +177,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     setIsStreaming(false);
   };
 
-  // Delete message and all subsequent messages
   const deleteMessageAndAfter = (messageId) => {
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
@@ -165,34 +184,47 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     updateChatMessages(chatId, () => updatedMessages);
   };
 
-  // Main submit handler – builds multimodal content
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if ((!input.trim() && attachedFiles.length === 0 && attachedImages.length === 0) || isStreaming) return;
+    if ((!input.trim() && attachedImages.length === 0) || isStreaming) return;
 
     const userMsg = input;
     const sanitizedUserMsg = maskPersonalInfo(userMsg);
     setInput('');
 
-    // Build content array for multimodal message
+    // Build content array for images
     const contentArray = [];
     if (sanitizedUserMsg.trim()) contentArray.push({ type: 'text', text: sanitizedUserMsg });
     for (const img of attachedImages) {
       contentArray.push({ type: 'image_url', image_url: { url: img.data } });
     }
 
-    // If RAG text files are attached, incorporate them
     let finalUserContent;
-    if (attachedFiles.length > 0) {
-      const fileContext = attachedFiles.map(f =>
-        `[Attached Document: ${f.name}]\nContent Preview: ${f.content}\n`
-      ).join('\n');
-      const ragText = `${fileContext}\n\n${sanitizedUserMsg || 'Please analyze these documents.'}`;
+    let ragContext = '';
+
+    // If there are documents, get the most relevant chunks from backend
+    if (contextDocuments.length > 0) {
+      try {
+        const ragRes = await axios.post(`${apiUrl}/rag/search`, {
+          query: sanitizedUserMsg || 'Please analyze these documents.',
+          chatId: chatId
+        });
+        if (ragRes.data.length) {
+          ragContext = "Use the following relevant document excerpts to answer:\n" +
+            ragRes.data.map(d => `[From: ${d.name}]\n${d.text}\n`).join('\n');
+        }
+      } catch (err) {
+        console.error('RAG search failed:', err);
+      }
+    }
+
+    if (ragContext) {
+      const fullText = `${ragContext}\n\n${sanitizedUserMsg || 'Please analyze the documents.'}`;
       if (attachedImages.length > 0) {
-        contentArray.unshift({ type: 'text', text: ragText });
+        contentArray.unshift({ type: 'text', text: fullText });
         finalUserContent = contentArray;
       } else {
-        finalUserContent = ragText;
+        finalUserContent = fullText;
       }
       if (!useRAG) setUseRAG(true);
     } else {
@@ -203,13 +235,8 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
     setIsStreaming(true);
 
-    // Add user message to UI (simple representation)
     const displayText = userMsg || (attachedImages.length ? `📷 Image(s) attached` : '');
-    const newUserMessage = {
-      id: Date.now(),
-      role: 'user',
-      content: displayText
-    };
+    const newUserMessage = { id: Date.now(), role: 'user', content: displayText };
     updateChatMessages(chatId, (prev) => [...prev, newUserMessage]);
     updateChatMessages(chatId, (prev) => [...prev, { role: 'assistant', content: '', id: Date.now() + 1 }]);
 
@@ -241,7 +268,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       }
     );
 
-    setAttachedFiles([]);
     setAttachedImages([]);
     setIsStreaming(false);
   };
@@ -281,29 +307,26 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* RAG Status Indicator */}
-      {useRAG && (
+      {(useRAG || contextDocuments.length > 0) && (
         <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-blue-500/30 px-4 py-2">
-          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-sm">
               <BookOpen size={14} className="text-blue-400" />
               <span className="text-blue-300">Document context active</span>
-              <span className="text-xs text-gray-400">- {attachedFiles.length} file(s) attached</span>
+              <span className="text-xs text-gray-400">- {contextDocuments.length} document(s) in context</span>
             </div>
-            <button
-              onClick={() => {
-                setUseRAG(false);
-                setAttachedFiles([]);
-              }}
-              className="text-xs text-gray-400 hover:text-white transition px-2 py-0.5 rounded hover:bg-gray-700/50"
-            >
-              Clear all
-            </button>
+            {contextDocuments.length > 0 && (
+              <button
+                onClick={clearAllContextDocs}
+                className="text-xs text-red-400 hover:text-red-300 transition px-2 py-0.5 rounded hover:bg-red-600/20"
+              >
+                <Trash size={12} className="inline mr-1" /> Clear all
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      {/* Messages Container */}
       <div className="flex-1 overflow-y-auto scroll-smooth">
         <div className="max-w-3xl mx-auto px-4 py-6">
           {messages.length === 0 && (
@@ -311,12 +334,8 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-r from-blue-500/20 to-purple-600/20 mb-6">
                 <Sparkles size={32} className="text-blue-400" />
               </div>
-              <h1 className="text-2xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Pickmo.ai
-              </h1>
-              <p className="text-gray-400 text-sm mb-6 max-w-md mx-auto">
-                Your intelligent AI assistant. Upload documents or images, or start a conversation.
-              </p>
+              <h1 className="text-2xl font-bold mb-2 bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">Pickmo.ai</h1>
+              <p className="text-gray-400 text-sm mb-6 max-w-md mx-auto">Your intelligent AI assistant. Upload documents or images, or start a conversation.</p>
               <div className="flex flex-wrap gap-2 justify-center">
                 <SuggestionChip onClick={() => setInput("What can you help me with?")} icon="💬" text="What can you help me with?" />
                 <SuggestionChip onClick={() => setInput("Write a short story")} icon="📖" text="Write a story" />
@@ -326,7 +345,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
               <div className="mt-8 p-3 bg-gray-800/30 rounded-xl border border-gray-700/50 max-w-md mx-auto">
                 <div className="flex items-center gap-2">
                   <Paperclip size={16} className="text-blue-400" />
-                  <p className="text-xs text-gray-300">Upload a document or image for analysis</p>
+                  <p className="text-xs text-gray-300">Upload a document – it will stay active for the whole conversation</p>
                 </div>
               </div>
             </div>
@@ -337,140 +356,49 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
             const isEditing = editingMessageId === msg.id;
 
             return (
-              <div
-                key={msg.id || idx}
-                className={`flex gap-3 mb-4 ${isUser ? 'justify-end' : 'justify-start'} group`}
-              >
-                {/* Avatar */}
-                <div
-                  className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs ${
-                    isUser
-                      ? 'bg-gradient-to-r from-blue-500 to-purple-600 order-2'
-                      : 'bg-gradient-to-r from-purple-500 to-pink-600'
-                  }`}
-                >
+              <div key={msg.id || idx} className={`flex gap-3 mb-4 ${isUser ? 'justify-end' : 'justify-start'} group`}>
+                <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs ${isUser ? 'bg-gradient-to-r from-blue-500 to-purple-600 order-2' : 'bg-gradient-to-r from-purple-500 to-pink-600'}`}>
                   {isUser ? <User size={12} /> : <Bot size={12} />}
                 </div>
-
                 <div className={`flex-1 max-w-[85%] ${isUser ? 'order-1' : ''}`}>
                   {isEditing ? (
                     <div className="bg-gray-800 rounded-2xl p-3 border border-blue-500/50">
-                      <textarea
-                        ref={editTextareaRef}
-                        value={editingContent}
-                        onChange={(e) => setEditingContent(e.target.value)}
-                        onKeyDown={handleEditKeyDown}
-                        className="w-full bg-gray-900 rounded-xl p-2 text-sm text-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
-                        rows={3}
-                        placeholder="Edit your message..."
-                      />
+                      <textarea ref={editTextareaRef} value={editingContent} onChange={(e) => setEditingContent(e.target.value)} onKeyDown={handleEditKeyDown} className="w-full bg-gray-900 rounded-xl p-2 text-sm text-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-500" rows={3} placeholder="Edit your message..." />
                       <div className="flex justify-end gap-2 mt-2">
-                        <button
-                          onClick={cancelEdit}
-                          className="px-2 py-1 text-xs text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"
-                        >
-                          <XCircle size={12} className="inline mr-1" /> Cancel
-                        </button>
-                        <button
-                          onClick={() => saveEditAndResend(msg.id, editingContent)}
-                          className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 rounded-lg"
-                        >
-                          <CheckCircle size={12} className="inline mr-1" /> Send
-                        </button>
+                        <button onClick={cancelEdit} className="px-2 py-1 text-xs text-gray-400 hover:text-white rounded-lg hover:bg-gray-700"><XCircle size={12} className="inline mr-1" /> Cancel</button>
+                        <button onClick={() => saveEditAndResend(msg.id, editingContent)} className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 rounded-lg"><CheckCircle size={12} className="inline mr-1" /> Send</button>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <div
-                        className={`rounded-2xl px-4 py-2 ${
-                          isUser
-                            ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white'
-                            : 'bg-gray-800/50 text-gray-100 border border-gray-700/50'
-                        }`}
-                      >
+                      <div className={`rounded-2xl px-4 py-2 ${isUser ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 'bg-gray-800/50 text-gray-100 border border-gray-700/50'}`}>
                         {msg.role === 'assistant' ? (
                           <div className="prose prose-invert prose-sm max-w-none overflow-x-auto">
-                            <ReactMarkdown
-                              components={{
-                                table: ({ children }) => (
-                                  <div className="overflow-x-auto my-2">
-                                    <table className="min-w-full border-collapse border border-gray-600">
-                                      {children}
-                                    </table>
-                                  </div>
-                                ),
-                                th: ({ children }) => (
-                                  <th className="border border-gray-600 px-3 py-1 text-left text-sm">{children}</th>
-                                ),
-                                td: ({ children }) => (
-                                  <td className="border border-gray-600 px-3 py-1 text-sm">{children}</td>
-                                ),
-                                code: ({ node, inline, className, children, ...props }) => (
-                                  <code
-                                    className={`${className} ${inline ? 'bg-gray-800 px-1 py-0.5 rounded' : 'block bg-gray-900 p-3 rounded-lg overflow-x-auto'}`}
-                                    {...props}
-                                  >
-                                    {children}
-                                  </code>
-                                ),
-                              }}
-                            >
+                            <ReactMarkdown components={{
+                              table: ({ children }) => <div className="overflow-x-auto my-2"><table className="min-w-full border-collapse border border-gray-600">{children}</table></div>,
+                              th: ({ children }) => <th className="border border-gray-600 px-3 py-1 text-left text-sm">{children}</th>,
+                              td: ({ children }) => <td className="border border-gray-600 px-3 py-1 text-sm">{children}</td>,
+                              code: ({ node, inline, className, children, ...props }) => <code className={`${className} ${inline ? 'bg-gray-800 px-1 py-0.5 rounded' : 'block bg-gray-900 p-3 rounded-lg overflow-x-auto'}`} {...props}>{children}</code>
+                            }}>
                               {msg.content || (isStreaming && idx === messages.length - 1 ? '▌' : '')}
                             </ReactMarkdown>
-                            {isStreaming && idx === messages.length - 1 && msg.content && (
-                              <span className="inline-block w-1 h-3 bg-blue-400 ml-0.5 animate-pulse"></span>
-                            )}
+                            {isStreaming && idx === messages.length - 1 && msg.content && <span className="inline-block w-1 h-3 bg-blue-400 ml-0.5 animate-pulse"></span>}
                           </div>
                         ) : (
-                          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                            {msg.content}
-                            {msg.edited && (
-                              <span className="ml-2 text-xs text-gray-400">(edited)</span>
-                            )}
-                          </p>
+                          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{msg.content}{msg.edited && <span className="ml-2 text-xs text-gray-400">(edited)</span>}</p>
                         )}
                       </div>
-
-                      {/* Compact action buttons */}
                       <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {isUser && (
                           <>
-                            <button
-                              onClick={() => startEditMessage(msg.id, msg.content)}
-                              className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5"
-                              title="Edit message"
-                            >
-                              <Edit2 size={10} /> Edit
-                            </button>
-                            <button
-                              onClick={() => deleteMessageAndAfter(msg.id)}
-                              className="text-[10px] text-gray-500 hover:text-red-400 transition flex items-center gap-0.5"
-                              title="Delete this message and all responses"
-                            >
-                              <Trash2 size={10} /> Delete
-                            </button>
+                            <button onClick={() => startEditMessage(msg.id, msg.content)} className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5"><Edit2 size={10} /> Edit</button>
+                            <button onClick={() => deleteMessageAndAfter(msg.id)} className="text-[10px] text-gray-500 hover:text-red-400 transition flex items-center gap-0.5"><Trash2 size={10} /> Delete</button>
                           </>
                         )}
                         {msg.role === 'assistant' && !isStreaming && msg.content && (
                           <>
-                            <button
-                              onClick={() => copyToClipboard(msg.content, idx)}
-                              className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5"
-                            >
-                              {copiedIndex === idx ? <Check size={10} /> : <Copy size={10} />}
-                              {copiedIndex === idx ? 'Copied' : 'Copy'}
-                            </button>
-                            {msg.content.length > 100 && (
-                              <button
-                                onClick={() => {
-                                  const filename = `generated-${Date.now()}.txt`;
-                                  saveToResources(msg.content, filename);
-                                }}
-                                className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5"
-                              >
-                                <FileText size={10} /> Save
-                              </button>
-                            )}
+                            <button onClick={() => copyToClipboard(msg.content, idx)} className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5">{copiedIndex === idx ? <Check size={10} /> : <Copy size={10} />}{copiedIndex === idx ? 'Copied' : 'Copy'}</button>
+                            {msg.content.length > 100 && <button onClick={() => { const filename = `generated-${Date.now()}.txt`; saveToResources(msg.content, filename); }} className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5"><FileText size={10} /> Save</button>}
                           </>
                         )}
                       </div>
@@ -484,21 +412,17 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         </div>
       </div>
 
-      {/* Attachment previews */}
-      {attachedFiles.length > 0 && (
+      {/* Active documents preview */}
+      {contextDocuments.length > 0 && (
         <div className="border-t border-gray-800 px-4 py-2 bg-gray-900/50">
           <div className="max-w-3xl mx-auto">
-            <div className="flex flex-wrap gap-2">
-              {attachedFiles.map(file => (
-                <div key={file.id} className="bg-gray-800 rounded-lg px-2 py-1 flex items-center gap-1 text-xs border border-gray-700">
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs text-gray-400">Active documents:</span>
+              {contextDocuments.map(doc => (
+                <div key={doc.id} className="bg-gray-800 rounded-lg px-2 py-1 flex items-center gap-1 text-xs border border-gray-700">
                   <FileText size={12} className="text-blue-400" />
-                  <span className="truncate max-w-[120px]">{file.name}</span>
-                  <button
-                    onClick={() => removeAttachment(file.id)}
-                    className="text-gray-400 hover:text-red-400 transition"
-                  >
-                    <X size={10} />
-                  </button>
+                  <span className="truncate max-w-[120px]">{doc.name}</span>
+                  <button onClick={() => removeContextDocument(doc.id)} className="text-gray-400 hover:text-red-400 transition"><X size={10} /></button>
                 </div>
               ))}
             </div>
@@ -506,6 +430,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         </div>
       )}
 
+      {/* Temporary image preview */}
       {attachedImages.length > 0 && (
         <div className="border-t border-gray-800 px-4 py-2 bg-gray-900/50">
           <div className="max-w-3xl mx-auto">
@@ -513,12 +438,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
               {attachedImages.map(img => (
                 <div key={img.id} className="relative group">
                   <img src={img.data} alt={img.name} className="h-12 w-12 object-cover rounded-lg border border-gray-700" />
-                  <button
-                    onClick={() => removeImage(img.id)}
-                    className="absolute -top-1 -right-1 bg-red-600 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"
-                  >
-                    <X size={10} />
-                  </button>
+                  <button onClick={() => removeImage(img.id)} className="absolute -top-1 -right-1 bg-red-600 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition"><X size={10} /></button>
                 </div>
               ))}
             </div>
@@ -530,65 +450,18 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       <div className="border-t border-gray-800 bg-gradient-to-t from-gray-900 to-gray-900/95 p-4">
         <div className="max-w-3xl mx-auto">
           <form onSubmit={handleSubmit} className="relative">
-            <textarea
-              ref={textareaRef}
-              rows="1"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                attachedFiles.length > 0
-                  ? "Ask about your uploaded document..."
-                  : attachedImages.length > 0
-                  ? "Ask about your image(s)..."
-                  : "Message Pickmo.ai... (Hover to edit/delete)"
-              }
-              disabled={isStreaming}
-              className="w-full bg-gray-800/50 rounded-2xl px-4 py-3 pr-24 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none text-sm text-white placeholder-gray-400 border border-gray-700 focus:border-transparent transition-all duration-200"
-              style={{ maxHeight: '120px' }}
-            />
+            <textarea ref={textareaRef} rows="1" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={contextDocuments.length > 0 ? `Ask about your ${contextDocuments.length} document(s)...` : attachedImages.length > 0 ? "Ask about your image(s)..." : "Message Pickmo.ai... (Upload documents to keep them active)"} disabled={isStreaming} className="w-full bg-gray-800/50 rounded-2xl px-4 py-3 pr-24 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none text-sm text-white placeholder-gray-400 border border-gray-700 focus:border-transparent transition-all duration-200" style={{ maxHeight: '120px' }} />
             <div className="absolute right-2 bottom-3 flex gap-1">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isStreaming || uploadingFiles}
-                className="p-1.5 text-gray-400 hover:text-blue-400 transition disabled:opacity-50 rounded-lg hover:bg-gray-700/50"
-                title="Attach document or image"
-              >
-                {uploadingFiles ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
-              </button>
-              <button
-                type="submit"
-                disabled={isStreaming || (!input.trim() && attachedFiles.length === 0 && attachedImages.length === 0)}
-                className="p-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-all duration-200"
-              >
-                {isStreaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              </button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isStreaming || uploadingFiles} className="p-1.5 text-gray-400 hover:text-blue-400 transition disabled:opacity-50 rounded-lg hover:bg-gray-700/50" title="Attach document or image">{uploadingFiles ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}</button>
+              <button type="submit" disabled={isStreaming || (!input.trim() && attachedImages.length === 0)} className="p-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-all duration-200">{isStreaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}</button>
             </div>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              accept=".txt,.md,.pdf,.doc,.docx,image/*"
-              onChange={handleFileUpload}
-              className="hidden"
-              disabled={isStreaming}
-            />
+            <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.pdf,.doc,.docx,image/*" onChange={handleFileUpload} className="hidden" disabled={isStreaming} />
           </form>
           <div className="flex justify-between items-center mt-2 text-[10px] text-gray-500 px-1">
-            <div className="flex items-center gap-2">
-              <span>Press <kbd className="px-1 py-0.5 bg-gray-800 rounded text-xs">Enter</kbd> to send</span>
-              <span className="text-gray-600">•</span>
-              <span><kbd className="px-1 py-0.5 bg-gray-800 rounded text-xs">Shift+Enter</kbd> for new line</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span>⚠️</span>
-              <span>Privacy: sensitive info redacted</span>
-            </div>
+            <div className="flex items-center gap-2"><span>Press <kbd className="px-1 py-0.5 bg-gray-800 rounded text-xs">Enter</kbd> to send</span><span className="text-gray-600">•</span><span><kbd className="px-1 py-0.5 bg-gray-800 rounded text-xs">Shift+Enter</kbd> for new line</span></div>
+            <div className="flex items-center gap-1"><span>⚠️</span><span>Privacy: sensitive info redacted</span></div>
           </div>
-          <div className="text-[10px] text-gray-500 text-center mt-1">
-            📎 Upload .txt, .md, or images for vision models (Gemini 2.0 Flash, etc.)
-          </div>
+          <div className="text-[10px] text-gray-500 text-center mt-1">📎 Upload documents – they stay active for the whole conversation. Use 'Clear all' to remove.</div>
         </div>
       </div>
     </div>
@@ -597,10 +470,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
 function SuggestionChip({ onClick, icon, text }) {
   return (
-    <button
-      onClick={onClick}
-      className="px-3 py-1.5 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-xs transition-all duration-200 border border-gray-700 hover:border-gray-600 group"
-    >
+    <button onClick={onClick} className="px-3 py-1.5 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-xs transition-all duration-200 border border-gray-700 hover:border-gray-600 group">
       <span className="mr-1">{icon}</span>
       <span className="text-gray-300 group-hover:text-white transition">{text}</span>
     </button>
