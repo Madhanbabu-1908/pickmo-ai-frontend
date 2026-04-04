@@ -10,12 +10,10 @@ import Download from './components/Download';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Load saved preferences from localStorage
 const loadPreference = (key, defaultValue) => {
   const saved = localStorage.getItem(`pickmo_${key}`);
   return saved !== null ? JSON.parse(saved) : defaultValue;
 };
-
 const savePreference = (key, value) => {
   localStorage.setItem(`pickmo_${key}`, JSON.stringify(value));
 };
@@ -29,21 +27,24 @@ function App() {
       const parsed = JSON.parse(saved);
       return parsed.map(chat => ({
         ...chat,
-        messages: chat.messages.map(msg => ({
-          ...msg,
-          id: msg.id || `msg-${Date.now()}-${Math.random()}`
-        }))
+        messages: chat.messages.map(msg => ({ ...msg, id: msg.id || `msg-${Date.now()}-${Math.random()}` })),
+        systemPrompt: chat.systemPrompt || ''
       }));
     }
-    return [{ id: '1', title: 'New conversation', messages: [] }];
+    return [{ id: '1', title: 'New conversation', messages: [], systemPrompt: '' }];
   });
   const [activeChatId, setActiveChatId] = useState('1');
   const [activeView, setActiveView] = useState('chat');
   const [useRAG, setUseRAG] = useState(() => loadPreference('useRAG', false));
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => loadPreference('sidebarCollapsed', false));
   const [loadingModels, setLoadingModels] = useState(true);
+  const [theme, setTheme] = useState(() => loadPreference('theme', 'dark'));
 
-  // Save preferences
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', theme === 'dark');
+    savePreference('theme', theme);
+  }, [theme]);
+
   useEffect(() => {
     savePreference('useRAG', useRAG);
   }, [useRAG]);
@@ -86,17 +87,26 @@ function App() {
         setChats(prev => [{
           id: newId,
           title: decoded.title + ' (shared)',
-          messages: decoded.messages.map(msg => ({ ...msg, id: Date.now() + Math.random() }))
+          messages: decoded.messages.map(msg => ({ ...msg, id: Date.now() + Math.random() })),
+          systemPrompt: ''
         }, ...prev]);
         setActiveChatId(newId);
         window.history.replaceState({}, document.title, window.location.pathname);
-      } catch (e) {
-        console.error('Failed to load shared chat');
-      }
+      } catch (e) { console.error('Failed to load shared chat'); }
     }
   }, []);
 
-  const sendMessageStream = async (userContent, onChunk, onError) => {
+  const generateChatTitle = async (chatId, userMessage) => {
+    const chat = chats.find(c => c.id === chatId);
+    if (chat && chat.title !== 'New conversation') return;
+    try {
+      const response = await axios.post(`${API_URL}/chat/title`, { message: userMessage });
+      const title = response.data.title;
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, title: title.substring(0, 30) } : c));
+    } catch (err) { console.error('Title generation failed'); }
+  };
+
+  const sendMessageStream = async (userContent, onChunk, onError, enableSearch = false) => {
     const activeChat = chats.find(c => c.id === activeChatId);
     let context = '';
     if (useRAG && typeof userContent === 'string') {
@@ -112,6 +122,9 @@ function App() {
       .filter(msg => msg && msg.content && msg.content.length > 0)
       .map(msg => ({ role: msg.role, content: msg.content }));
 
+    if (activeChat.systemPrompt) {
+      cleanMessages.unshift({ role: 'system', content: activeChat.systemPrompt });
+    }
     if (context) cleanMessages.push({ role: 'system', content: context });
     cleanMessages.push({ role: 'user', content: userContent });
 
@@ -119,14 +132,20 @@ function App() {
       const response = await fetch(`${API_URL}/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modelId: selectedModel, messages: cleanMessages })
+        body: JSON.stringify({ modelId: selectedModel, messages: cleanMessages, enableSearch })
       });
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let firstChunk = true;
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        onChunk(decoder.decode(value));
+        const chunk = decoder.decode(value);
+        if (firstChunk && activeChat.title === 'New conversation' && typeof userContent === 'string') {
+          generateChatTitle(activeChatId, userContent);
+          firstChunk = false;
+        }
+        onChunk(chunk);
       }
     } catch (err) {
       onError(err);
@@ -135,43 +154,36 @@ function App() {
 
   const newChat = () => {
     const newId = Date.now().toString();
-    setChats(prev => [{ id: newId, title: 'New conversation', messages: [] }, ...prev]);
+    setChats(prev => [{ id: newId, title: 'New conversation', messages: [], systemPrompt: '' }, ...prev]);
     setActiveChatId(newId);
     setActiveView('chat');
     setUseRAG(false);
   };
 
-  // Fork a conversation from a specific message
   const forkChatFromMessage = (messageId, newContent) => {
     const originalChat = chats.find(c => c.id === activeChatId);
     if (!originalChat) return;
     const messageIndex = originalChat.messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
-
     const newChatId = Date.now().toString();
     const truncatedMessages = originalChat.messages.slice(0, messageIndex + 1);
     truncatedMessages[messageIndex].content = newContent;
     truncatedMessages[messageIndex].edited = true;
-
     const newChat = {
       id: newChatId,
       title: `${originalChat.title} (fork)`,
-      messages: truncatedMessages
+      messages: truncatedMessages,
+      systemPrompt: originalChat.systemPrompt
     };
     setChats(prev => [newChat, ...prev]);
     setActiveChatId(newChatId);
     setActiveView('chat');
   };
 
-  // Export current chat as Markdown
   const exportChatAsMarkdown = () => {
     const chat = chats.find(c => c.id === activeChatId);
-    if (!chat || chat.messages.length === 0) {
-      alert('No messages to export.');
-      return;
-    }
-    let markdown = `# ${chat.title}\n\n`;
-    markdown += `*Exported on ${new Date().toLocaleString()}*\n\n---\n\n`;
+    if (!chat || chat.messages.length === 0) return alert('No messages to export.');
+    let markdown = `# ${chat.title}\n\n*Exported on ${new Date().toLocaleString()}*\n\n---\n\n`;
     for (const msg of chat.messages) {
       const role = msg.role === 'user' ? '**You**' : '**Pickmo.ai**';
       markdown += `${role}:\n${msg.content}\n\n`;
@@ -185,17 +197,10 @@ function App() {
     URL.revokeObjectURL(url);
   };
 
-  // Generate shareable link for current chat
   const getShareableLink = () => {
     const chat = chats.find(c => c.id === activeChatId);
-    if (!chat || chat.messages.length === 0) {
-      alert('No messages to share.');
-      return;
-    }
-    const data = {
-      title: chat.title,
-      messages: chat.messages.map(m => ({ role: m.role, content: m.content }))
-    };
+    if (!chat || chat.messages.length === 0) return alert('No messages to share.');
+    const data = { title: chat.title, messages: chat.messages.map(m => ({ role: m.role, content: m.content })) };
     const compressed = btoa(encodeURIComponent(JSON.stringify(data)));
     const url = `${window.location.origin}/share#${compressed}`;
     navigator.clipboard.writeText(url);
@@ -204,7 +209,7 @@ function App() {
 
   const clearAllChats = () => {
     if (window.confirm('Delete all chat history? This cannot be undone.')) {
-      setChats([{ id: '1', title: 'New conversation', messages: [] }]);
+      setChats([{ id: '1', title: 'New conversation', messages: [], systemPrompt: '' }]);
       setActiveChatId('1');
       setActiveView('chat');
       setUseRAG(false);
@@ -212,26 +217,23 @@ function App() {
     }
   };
 
+  const updateSystemPrompt = (chatId, prompt) => {
+    setChats(prev => prev.map(c => c.id === chatId ? { ...c, systemPrompt: prompt } : c));
+  };
+
   const updateChatMessages = (chatId, updater) => {
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, messages: updater(c.messages) } : c));
   };
 
-  const activeChat = chats.find(c => c.id === activeChatId) || { messages: [] };
+  const activeChat = chats.find(c => c.id === activeChatId) || { messages: [], systemPrompt: '' };
   const usableModels = models.filter(m => !m.type || m.type === 'vision');
 
   if (loadingModels) {
-    return (
-      <div className="flex h-screen bg-gray-900 items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading available models...</p>
-        </div>
-      </div>
-    );
+    return <div className="flex h-screen bg-gray-900 items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div><p className="text-gray-400">Loading available models...</p></div>;
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 text-white overflow-hidden">
+    <div className={`flex h-screen ${theme === 'dark' ? 'dark' : ''} bg-white dark:bg-gray-900 text-gray-900 dark:text-white overflow-hidden transition-colors`}>
       <Sidebar
         chats={chats}
         activeChatId={activeChatId}
@@ -246,15 +248,13 @@ function App() {
         onShareChat={getShareableLink}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+        theme={theme}
+        setTheme={setTheme}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         {activeView === 'chat' && (
           <>
-            <ModelSelector
-              models={usableModels}
-              selected={selectedModel}
-              onChange={setSelectedModel}
-            />
+            <ModelSelector models={usableModels} selected={selectedModel} onChange={setSelectedModel} />
             <ChatArea
               messages={activeChat.messages}
               onSendStream={sendMessageStream}
@@ -264,6 +264,8 @@ function App() {
               useRAG={useRAG}
               setUseRAG={setUseRAG}
               onForkMessage={forkChatFromMessage}
+              systemPrompt={activeChat.systemPrompt}
+              onUpdateSystemPrompt={updateSystemPrompt}
             />
           </>
         )}
