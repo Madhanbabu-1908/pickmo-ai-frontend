@@ -150,3 +150,10 @@ button {
   background: #3b82f6;
   color: white;
 }
+
+body {
+  background-color: white;
+}
+.dark body {
+  background-color: #111827;
+}
