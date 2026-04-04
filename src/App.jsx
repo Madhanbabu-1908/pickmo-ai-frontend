@@ -10,6 +10,16 @@ import Download from './components/Download';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
+// Load saved preferences from localStorage
+const loadPreference = (key, defaultValue) => {
+  const saved = localStorage.getItem(`pickmo_${key}`);
+  return saved !== null ? JSON.parse(saved) : defaultValue;
+};
+
+const savePreference = (key, value) => {
+  localStorage.setItem(`pickmo_${key}`, JSON.stringify(value));
+};
+
 function App() {
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
@@ -29,29 +39,23 @@ function App() {
   });
   const [activeChatId, setActiveChatId] = useState('1');
   const [activeView, setActiveView] = useState('chat');
-  const [useRAG, setUseRAG] = useState(() => {
-    const saved = localStorage.getItem('pickmo_useRAG');
-    return saved ? JSON.parse(saved) : false;
-  });
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
-    const saved = localStorage.getItem('pickmo_sidebarCollapsed');
-    return saved ? JSON.parse(saved) : false;
-  });
+  const [useRAG, setUseRAG] = useState(() => loadPreference('useRAG', false));
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => loadPreference('sidebarCollapsed', false));
   const [loadingModels, setLoadingModels] = useState(true);
 
   // Save preferences
   useEffect(() => {
-    localStorage.setItem('pickmo_useRAG', JSON.stringify(useRAG));
+    savePreference('useRAG', useRAG);
   }, [useRAG]);
   useEffect(() => {
-    localStorage.setItem('pickmo_sidebarCollapsed', JSON.stringify(isSidebarCollapsed));
+    savePreference('sidebarCollapsed', isSidebarCollapsed);
   }, [isSidebarCollapsed]);
 
   useEffect(() => {
     axios.get(`${API_URL}/models`).then(res => {
       setModels(res.data);
       const usableModels = res.data.filter(m => !m.type || m.type === 'vision');
-      const savedModel = localStorage.getItem('pickmo_selectedModel');
+      const savedModel = loadPreference('selectedModel', '');
       if (savedModel && usableModels.some(m => m.id === savedModel)) {
         setSelectedModel(savedModel);
       } else if (usableModels.length) {
@@ -65,12 +69,32 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (selectedModel) localStorage.setItem('pickmo_selectedModel', selectedModel);
+    if (selectedModel) savePreference('selectedModel', selectedModel);
   }, [selectedModel]);
 
   useEffect(() => {
     localStorage.setItem('chatHistory', JSON.stringify(chats));
   }, [chats]);
+
+  // Load shared chat from URL hash
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(atob(hash)));
+        const newId = Date.now().toString();
+        setChats(prev => [{
+          id: newId,
+          title: decoded.title + ' (shared)',
+          messages: decoded.messages.map(msg => ({ ...msg, id: Date.now() + Math.random() }))
+        }, ...prev]);
+        setActiveChatId(newId);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.error('Failed to load shared chat');
+      }
+    }
+  }, []);
 
   const sendMessageStream = async (userContent, onChunk, onError) => {
     const activeChat = chats.find(c => c.id === activeChatId);
@@ -123,12 +147,12 @@ function App() {
     if (!originalChat) return;
     const messageIndex = originalChat.messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
-    
+
     const newChatId = Date.now().toString();
     const truncatedMessages = originalChat.messages.slice(0, messageIndex + 1);
     truncatedMessages[messageIndex].content = newContent;
     truncatedMessages[messageIndex].edited = true;
-    
+
     const newChat = {
       id: newChatId,
       title: `${originalChat.title} (fork)`,
@@ -178,27 +202,6 @@ function App() {
     alert('Shareable link copied to clipboard!');
   };
 
-  // Load shared chat from URL hash (call this in useEffect on mount)
-  useEffect(() => {
-    const hash = window.location.hash.slice(1);
-    if (hash) {
-      try {
-        const decoded = JSON.parse(decodeURIComponent(atob(hash)));
-        const newId = Date.now().toString();
-        setChats(prev => [{
-          id: newId,
-          title: decoded.title + ' (shared)',
-          messages: decoded.messages.map(msg => ({ ...msg, id: Date.now() + Math.random() }))
-        }, ...prev]);
-        setActiveChatId(newId);
-        // Remove hash from URL
-        window.history.replaceState({}, document.title, window.location.pathname);
-      } catch (e) {
-        console.error('Failed to load shared chat');
-      }
-    }
-  }, []);
-
   const clearAllChats = () => {
     if (window.confirm('Delete all chat history? This cannot be undone.')) {
       setChats([{ id: '1', title: 'New conversation', messages: [] }]);
@@ -217,7 +220,14 @@ function App() {
   const usableModels = models.filter(m => !m.type || m.type === 'vision');
 
   if (loadingModels) {
-    return <div className="flex h-screen bg-gray-900 items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div><p className="text-gray-400">Loading available models...</p></div>;
+    return (
+      <div className="flex h-screen bg-gray-900 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-400">Loading available models...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -240,7 +250,11 @@ function App() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {activeView === 'chat' && (
           <>
-            <ModelSelector models={usableModels} selected={selectedModel} onChange={setSelectedModel} />
+            <ModelSelector
+              models={usableModels}
+              selected={selectedModel}
+              onChange={setSelectedModel}
+            />
             <ChatArea
               messages={activeChat.messages}
               onSendStream={sendMessageStream}
