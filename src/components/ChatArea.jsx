@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check, Bot, User, BookOpen, Edit2, Trash2, CheckCircle, XCircle, Trash, Mic } from 'lucide-react';
+import { Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check, Bot, User, BookOpen, Edit2, Trash2, CheckCircle, XCircle, Trash, Mic, Globe, Volume2, Settings } from 'lucide-react';
 import axios from 'axios';
 import { maskPersonalInfo } from './privacy';
+import PromptLibrary from './PromptLibrary';
 
-export default function ChatArea({ messages, onSendStream, chatId, updateChatMessages, apiUrl, useRAG, setUseRAG, onForkMessage = () => {} }) {
+export default function ChatArea({ messages, onSendStream, chatId, updateChatMessages, apiUrl, useRAG, setUseRAG, onForkMessage, systemPrompt, onUpdateSystemPrompt }) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -19,13 +20,16 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     const saved = localStorage.getItem(`reactions_${chatId}`);
     return saved ? JSON.parse(saved) : {};
   });
+  const [enableWebSearch, setEnableWebSearch] = useState(false);
+  const [showSystemPromptEditor, setShowSystemPromptEditor] = useState(false);
+  const [localSystemPrompt, setLocalSystemPrompt] = useState(systemPrompt);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const editTextareaRef = useRef(null);
   const recognitionRef = useRef(null);
 
-  // Voice recognition setup
+  // Voice recognition
   useEffect(() => {
     if ('webkitSpeechRecognition' in window) {
       const recognition = new webkitSpeechRecognition();
@@ -49,20 +53,30 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     }
   };
 
-  // Save reactions
+  // Text‑to‑speech
+  const speak = (text) => {
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 0.9;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert('Your browser does not support speech synthesis.');
+    }
+  };
+
+  // Reactions
   useEffect(() => {
     localStorage.setItem(`reactions_${chatId}`, JSON.stringify(reactions));
   }, [reactions, chatId]);
 
+  // RAG context
   const loadContextDocuments = async () => {
     try {
       const res = await axios.get(`${apiUrl}/rag/documents/${chatId}`);
       if (res.data) setContextDocuments(res.data);
-    } catch (err) {
-      console.error('Failed to load context docs:', err);
-    }
+    } catch (err) { console.error('Failed to load context docs:', err); }
   };
-
   useEffect(() => {
     loadContextDocuments();
   }, [chatId]);
@@ -89,19 +103,12 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files);
     if (files.length === 0) return;
-
     setUploadingFiles(true);
-
     for (const file of files) {
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (event) => {
-          setAttachedImages(prev => [...prev, {
-            id: Date.now(),
-            name: file.name,
-            data: event.target.result,
-            type: file.type
-          }]);
+          setAttachedImages(prev => [...prev, { id: Date.now(), name: file.name, data: event.target.result, type: file.type }]);
         };
         reader.readAsDataURL(file);
       } else {
@@ -109,21 +116,14 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         reader.onload = async (event) => {
           const content = event.target.result;
           try {
-            await axios.post(`${apiUrl}/rag/upload`, {
-              text: content,
-              name: file.name,
-              chatId: chatId
-            });
+            await axios.post(`${apiUrl}/rag/upload`, { text: content, name: file.name, chatId });
             loadContextDocuments();
             if (!useRAG) setUseRAG(true);
-          } catch (err) {
-            console.error('Upload failed:', err);
-          }
+          } catch (err) { console.error('Upload failed:', err); }
         };
         reader.readAsText(file);
       }
     }
-
     setUploadingFiles(false);
     fileInputRef.current.value = '';
   };
@@ -133,20 +133,16 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       await axios.delete(`${apiUrl}/rag/document/${chatId}/${docId}`);
       loadContextDocuments();
       if (contextDocuments.length === 1) setUseRAG(false);
-    } catch (err) {
-      console.error('Failed to delete document:', err);
-    }
+    } catch (err) { console.error('Failed to delete document:', err); }
   };
 
   const clearAllContextDocs = async () => {
-    if (window.confirm('Remove all documents from context? They will remain in Resources but will not be used for current conversation.')) {
+    if (window.confirm('Remove all documents from context?')) {
       try {
         await axios.delete(`${apiUrl}/rag/delete/${chatId}`);
         setContextDocuments([]);
         setUseRAG(false);
-      } catch (err) {
-        console.error('Failed to clear documents:', err);
-      }
+      } catch (err) { console.error('Failed to clear documents:', err); }
     }
   };
 
@@ -165,13 +161,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
     const updatedMessages = messages.slice(0, messageIndex);
-    const editedMessage = {
-      ...messages[messageIndex],
-      id: Date.now(),
-      content: editingContent,
-      edited: true,
-      originalContent: originalContent
-    };
+    const editedMessage = { ...messages[messageIndex], id: Date.now(), content: editingContent, edited: true, originalContent };
     updatedMessages.push(editedMessage);
     updateChatMessages(chatId, () => updatedMessages);
     setEditingMessageId(null);
@@ -196,7 +186,8 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
           newMessages[newMessages.length - 1] = { role: 'assistant', content: 'I apologize, but I encountered an error. Please try again.', id: newMessages[newMessages.length - 1].id };
           return newMessages;
         });
-      }
+      },
+      enableWebSearch
     );
     setIsStreaming(false);
     setIsAiTyping(false);
@@ -226,17 +217,11 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
     if (contextDocuments.length > 0) {
       try {
-        const ragRes = await axios.post(`${apiUrl}/rag/search`, {
-          query: sanitizedUserMsg || 'Please analyze these documents.',
-          chatId: chatId
-        });
+        const ragRes = await axios.post(`${apiUrl}/rag/search`, { query: sanitizedUserMsg || 'Please analyze these documents.', chatId });
         if (ragRes.data.length) {
-          ragContext = "Use the following relevant document excerpts to answer:\n" +
-            ragRes.data.map(d => `[From: ${d.name}]\n${d.text}\n`).join('\n');
+          ragContext = "Use the following relevant document excerpts to answer:\n" + ragRes.data.map(d => `[From: ${d.name}]\n${d.text}\n`).join('\n');
         }
-      } catch (err) {
-        console.error('RAG search failed:', err);
-      }
+      } catch (err) { console.error('RAG search failed:', err); }
     }
 
     if (ragContext) {
@@ -281,7 +266,8 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
           newMessages[newMessages.length - 1] = { role: 'assistant', content: 'I apologize, but I encountered an error. Please try again.', id: newMessages[newMessages.length - 1].id };
           return newMessages;
         });
-      }
+      },
+      enableWebSearch
     );
 
     setAttachedImages([]);
@@ -314,15 +300,42 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     localStorage.setItem('generatedDocuments', JSON.stringify(savedDocs));
   };
 
+  const insertPrompt = (text) => {
+    setInput(prev => prev + (prev ? ' ' : '') + text);
+  };
+
+  const saveSystemPrompt = () => {
+    onUpdateSystemPrompt(chatId, localSystemPrompt);
+    setShowSystemPromptEditor(false);
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
+      {/* System Prompt Editor */}
+      <div className="border-b border-gray-800 px-4 py-1 flex justify-between items-center bg-gray-800/20">
+        <button onClick={() => setShowSystemPromptEditor(!showSystemPromptEditor)} className="text-xs text-gray-400 hover:text-blue-400 flex items-center gap-1">
+          <Settings size={12} /> System Prompt
+        </button>
+        {showSystemPromptEditor && (
+          <div className="flex gap-2 items-center">
+            <textarea
+              value={localSystemPrompt}
+              onChange={(e) => setLocalSystemPrompt(e.target.value)}
+              placeholder="Custom instructions for this conversation..."
+              className="text-xs bg-gray-800 rounded px-2 py-1 w-64 h-16 resize-none"
+            />
+            <button onClick={saveSystemPrompt} className="text-xs bg-blue-600 px-2 py-1 rounded">Save</button>
+          </div>
+        )}
+      </div>
+
       {(useRAG || contextDocuments.length > 0) && (
         <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-blue-500/30 px-4 py-2">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-sm">
               <BookOpen size={14} className="text-blue-400" />
               <span className="text-blue-300">Document context active</span>
-              <span className="text-xs text-gray-400">- {contextDocuments.length} document(s) in context</span>
+              <span className="text-xs text-gray-400">- {contextDocuments.length} document(s)</span>
             </div>
             {contextDocuments.length > 0 && (
               <button onClick={clearAllContextDocs} className="text-xs text-red-400 hover:text-red-300 transition px-2 py-0.5 rounded hover:bg-red-600/20">
@@ -332,6 +345,15 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
           </div>
         </div>
       )}
+
+      {/* Web Search Toggle */}
+      <div className="border-b border-gray-800 px-4 py-1 flex justify-end items-center gap-2">
+        <label className="flex items-center gap-1 text-xs text-gray-400">
+          <Globe size={12} />
+          <span>Web search</span>
+          <input type="checkbox" checked={enableWebSearch} onChange={(e) => setEnableWebSearch(e.target.checked)} className="ml-1" />
+        </label>
+      </div>
 
       <div className="flex-1 overflow-y-auto scroll-smooth">
         <div className="max-w-3xl mx-auto px-4 py-6">
@@ -401,6 +423,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                           <>
                             <button onClick={() => copyToClipboard(msg.content, idx)} className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5">{copiedIndex === idx ? <Check size={10} /> : <Copy size={10} />}{copiedIndex === idx ? 'Copied' : 'Copy'}</button>
                             {msg.content.length > 100 && <button onClick={() => { const filename = `generated-${Date.now()}.txt`; saveToResources(msg.content, filename); }} className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5"><FileText size={10} /> Save</button>}
+                            <button onClick={() => speak(msg.content)} className="text-[10px] text-gray-500 hover:text-blue-400 transition"><Volume2 size={10} /></button>
                             <div className="flex gap-1">
                               <button onClick={() => setReactions(prev => ({ ...prev, [msg.id]: '👍' }))} className={`text-[10px] ${reactions[msg.id] === '👍' ? 'text-green-400' : 'text-gray-500'}`}>👍</button>
                               <button onClick={() => setReactions(prev => ({ ...prev, [msg.id]: '👎' }))} className={`text-[10px] ${reactions[msg.id] === '👎' ? 'text-red-400' : 'text-gray-500'}`}>👎</button>
@@ -463,8 +486,9 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       <div className="border-t border-gray-800 bg-gradient-to-t from-gray-900 to-gray-900/95 p-4">
         <div className="max-w-3xl mx-auto">
           <form onSubmit={handleSubmit} className="relative">
-            <textarea ref={textareaRef} rows="1" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={contextDocuments.length > 0 ? `Ask about your ${contextDocuments.length} document(s)...` : attachedImages.length > 0 ? "Ask about your image(s)..." : "Message Pickmo.ai... (Hover to edit/delete/fork)"} disabled={isStreaming} className="w-full bg-gray-800/50 rounded-2xl px-4 py-3 pr-24 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none text-sm text-white placeholder-gray-400 border border-gray-700 focus:border-transparent transition-all duration-200" style={{ maxHeight: '120px' }} />
+            <textarea ref={textareaRef} rows="1" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder={contextDocuments.length > 0 ? `Ask about your ${contextDocuments.length} document(s)...` : attachedImages.length > 0 ? "Ask about your image(s)..." : "Message Pickmo.ai... (Hover to edit/delete/fork)"} disabled={isStreaming} className="w-full bg-gray-800/50 rounded-2xl px-4 py-3 pr-32 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none text-sm text-white placeholder-gray-400 border border-gray-700 focus:border-transparent transition-all duration-200" style={{ maxHeight: '120px' }} />
             <div className="absolute right-2 bottom-3 flex gap-1">
+              <PromptLibrary onInsertPrompt={insertPrompt} />
               <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isStreaming || uploadingFiles} className="p-1.5 text-gray-400 hover:text-blue-400 transition disabled:opacity-50 rounded-lg hover:bg-gray-700/50">{uploadingFiles ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}</button>
               <button type="button" onClick={startListening} disabled={isStreaming} className={`p-1.5 rounded-lg transition ${isListening ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-blue-400'}`}><Mic size={16} /></button>
               <button type="submit" disabled={isStreaming || (!input.trim() && attachedImages.length === 0)} className="p-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-all duration-200">{isStreaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}</button>
@@ -490,4 +514,3 @@ function SuggestionChip({ onClick, icon, text }) {
     </button>
   );
 }
-     
