@@ -4,7 +4,7 @@ import { Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check, Bot, User
 import axios from 'axios';
 import { maskPersonalInfo } from './privacy';
 
-export default function ChatArea({ messages, onSendStream, chatId, updateChatMessages, apiUrl, useRAG, setUseRAG, onForkMessage }) {
+export default function ChatArea({ messages, onSendStream, chatId, updateChatMessages, apiUrl, useRAG, setUseRAG, onForkMessage = () => {} }) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -393,7 +393,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                         {isUser && (
                           <>
                             <button onClick={() => startEditMessage(msg.id, msg.content)} className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5"><Edit2 size={10} /> Edit</button>
-                            <button onClick={() => onForkMessage?.(msg.id, msg.content)} className="text-[10px] text-gray-500 hover:text-purple-400 transition flex items-center gap-0.5">🔀 Fork</button>
+                            <button onClick={() => onForkMessage(msg.id, msg.content)} className="text-[10px] text-gray-500 hover:text-purple-400 transition flex items-center gap-0.5">🔀 Fork</button>
                             <button onClick={() => deleteMessageAndAfter(msg.id)} className="text-[10px] text-gray-500 hover:text-red-400 transition flex items-center gap-0.5"><Trash2 size={10} /> Delete</button>
                           </>
                         )}
@@ -423,7 +423,9 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
           )}
           <div ref={messagesEndRef} />
         </div>
-        {/* Active documents preview */}
+      </div>
+
+      {/* Active documents preview */}
       {contextDocuments.length > 0 && (
         <div className="border-t border-gray-800 px-4 py-2 bg-gray-900/50">
           <div className="max-w-3xl mx-auto">
@@ -488,3 +490,4 @@ function SuggestionChip({ onClick, icon, text }) {
     </button>
   );
 }
+     
