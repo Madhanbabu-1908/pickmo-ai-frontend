@@ -1,15 +1,13 @@
 import { 
   PlusCircle, MessageSquare, FolderOpen, HelpCircle, Lightbulb, Download,
-  Menu, X, ChevronLeft, ChevronRight, Sparkles, Trash2, FileText, Share2, Search
+  Menu, X, ChevronLeft, ChevronRight, Sparkles, Trash2, FileText, Share2, Search, Sun, Moon
 } from 'lucide-react';
 import { useState } from 'react';
 
 export default function Sidebar({ 
   chats, activeChatId, onSelectChat, onNewChat, onSelectResources, onSelectHelp,
-  onSelectSuggestion, onSelectDownload, onClearHistory, 
-  onExportChat = () => {},        // default empty function
-  onShareChat = () => {},         // default empty function
-  isCollapsed, onToggleCollapse
+  onSelectSuggestion, onSelectDownload, onClearHistory, onExportChat, onShareChat,
+  isCollapsed, onToggleCollapse, theme, setTheme
 }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -74,6 +72,7 @@ export default function Sidebar({
         <NavButton icon={FileText} label="Export Chat" onClick={() => { onExportChat(); setIsMobileOpen(false); }} isCollapsed={isCollapsed} />
         <NavButton icon={Share2} label="Share Chat" onClick={() => { onShareChat(); setIsMobileOpen(false); }} isCollapsed={isCollapsed} />
         <NavButton icon={Trash2} label="Clear All Chats" onClick={() => { if (window.confirm('Delete all chat history?')) { onClearHistory(); setIsMobileOpen(false); } }} isCollapsed={isCollapsed} />
+        <NavButton icon={theme === 'dark' ? Sun : Moon} label="Theme" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} isCollapsed={isCollapsed} />
       </div>
     </div>
   );
