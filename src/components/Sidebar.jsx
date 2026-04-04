@@ -6,7 +6,9 @@ import { useState } from 'react';
 
 export default function Sidebar({ 
   chats, activeChatId, onSelectChat, onNewChat, onSelectResources, onSelectHelp,
-  onSelectSuggestion, onSelectDownload, onClearHistory, onExportChat, onShareChat,
+  onSelectSuggestion, onSelectDownload, onClearHistory, 
+  onExportChat = () => {},        // default empty function
+  onShareChat = () => {},         // default empty function
   isCollapsed, onToggleCollapse
 }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
