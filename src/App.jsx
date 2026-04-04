@@ -10,16 +10,6 @@ import Download from './components/Download';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
-// Load saved preferences from localStorage
-const loadPreference = (key, defaultValue) => {
-  const saved = localStorage.getItem(`pickmo_${key}`);
-  return saved !== null ? JSON.parse(saved) : defaultValue;
-};
-
-const savePreference = (key, value) => {
-  localStorage.setItem(`pickmo_${key}`, JSON.stringify(value));
-};
-
 function App() {
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('');
@@ -39,25 +29,29 @@ function App() {
   });
   const [activeChatId, setActiveChatId] = useState('1');
   const [activeView, setActiveView] = useState('chat');
-  const [useRAG, setUseRAG] = useState(() => loadPreference('useRAG', false));
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => loadPreference('sidebarCollapsed', false));
+  const [useRAG, setUseRAG] = useState(() => {
+    const saved = localStorage.getItem('pickmo_useRAG');
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    const saved = localStorage.getItem('pickmo_sidebarCollapsed');
+    return saved ? JSON.parse(saved) : false;
+  });
   const [loadingModels, setLoadingModels] = useState(true);
 
-  // Save preferences when they change
+  // Save preferences
   useEffect(() => {
-    savePreference('useRAG', useRAG);
+    localStorage.setItem('pickmo_useRAG', JSON.stringify(useRAG));
   }, [useRAG]);
-
   useEffect(() => {
-    savePreference('sidebarCollapsed', isSidebarCollapsed);
+    localStorage.setItem('pickmo_sidebarCollapsed', JSON.stringify(isSidebarCollapsed));
   }, [isSidebarCollapsed]);
 
   useEffect(() => {
     axios.get(`${API_URL}/models`).then(res => {
       setModels(res.data);
       const usableModels = res.data.filter(m => !m.type || m.type === 'vision');
-      // Restore previously selected model if it exists in the list
-      const savedModel = loadPreference('selectedModel', '');
+      const savedModel = localStorage.getItem('pickmo_selectedModel');
       if (savedModel && usableModels.some(m => m.id === savedModel)) {
         setSelectedModel(savedModel);
       } else if (usableModels.length) {
@@ -70,9 +64,8 @@ function App() {
     });
   }, []);
 
-  // Save selected model when it changes
   useEffect(() => {
-    if (selectedModel) savePreference('selectedModel', selectedModel);
+    if (selectedModel) localStorage.setItem('pickmo_selectedModel', selectedModel);
   }, [selectedModel]);
 
   useEffect(() => {
@@ -84,7 +77,7 @@ function App() {
     let context = '';
     if (useRAG && typeof userContent === 'string') {
       try {
-        const ragRes = await axios.post(`${API_URL}/rag/search`, { query: userContent });
+        const ragRes = await axios.post(`${API_URL}/rag/search`, { query: userContent, chatId: activeChatId });
         if (ragRes.data.length) {
           context = "Use the following documents to answer:\n" + ragRes.data.map(d => d.text).join('\n\n');
         }
@@ -124,8 +117,90 @@ function App() {
     setUseRAG(false);
   };
 
+  // Fork a conversation from a specific message
+  const forkChatFromMessage = (messageId, newContent) => {
+    const originalChat = chats.find(c => c.id === activeChatId);
+    if (!originalChat) return;
+    const messageIndex = originalChat.messages.findIndex(m => m.id === messageId);
+    if (messageIndex === -1) return;
+    
+    const newChatId = Date.now().toString();
+    const truncatedMessages = originalChat.messages.slice(0, messageIndex + 1);
+    truncatedMessages[messageIndex].content = newContent;
+    truncatedMessages[messageIndex].edited = true;
+    
+    const newChat = {
+      id: newChatId,
+      title: `${originalChat.title} (fork)`,
+      messages: truncatedMessages
+    };
+    setChats(prev => [newChat, ...prev]);
+    setActiveChatId(newChatId);
+    setActiveView('chat');
+  };
+
+  // Export current chat as Markdown
+  const exportChatAsMarkdown = () => {
+    const chat = chats.find(c => c.id === activeChatId);
+    if (!chat || chat.messages.length === 0) {
+      alert('No messages to export.');
+      return;
+    }
+    let markdown = `# ${chat.title}\n\n`;
+    markdown += `*Exported on ${new Date().toLocaleString()}*\n\n---\n\n`;
+    for (const msg of chat.messages) {
+      const role = msg.role === 'user' ? '**You**' : '**Pickmo.ai**';
+      markdown += `${role}:\n${msg.content}\n\n`;
+    }
+    const blob = new Blob([markdown], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${chat.title.replace(/[^a-z0-9]/gi, '_')}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Generate shareable link for current chat
+  const getShareableLink = () => {
+    const chat = chats.find(c => c.id === activeChatId);
+    if (!chat || chat.messages.length === 0) {
+      alert('No messages to share.');
+      return;
+    }
+    const data = {
+      title: chat.title,
+      messages: chat.messages.map(m => ({ role: m.role, content: m.content }))
+    };
+    const compressed = btoa(encodeURIComponent(JSON.stringify(data)));
+    const url = `${window.location.origin}/share#${compressed}`;
+    navigator.clipboard.writeText(url);
+    alert('Shareable link copied to clipboard!');
+  };
+
+  // Load shared chat from URL hash (call this in useEffect on mount)
+  useEffect(() => {
+    const hash = window.location.hash.slice(1);
+    if (hash) {
+      try {
+        const decoded = JSON.parse(decodeURIComponent(atob(hash)));
+        const newId = Date.now().toString();
+        setChats(prev => [{
+          id: newId,
+          title: decoded.title + ' (shared)',
+          messages: decoded.messages.map(msg => ({ ...msg, id: Date.now() + Math.random() }))
+        }, ...prev]);
+        setActiveChatId(newId);
+        // Remove hash from URL
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } catch (e) {
+        console.error('Failed to load shared chat');
+      }
+    }
+  }, []);
+
   const clearAllChats = () => {
-    if (window.confirm('Are you sure you want to delete all chat history? This cannot be undone.')) {
+    if (window.confirm('Delete all chat history? This cannot be undone.')) {
       setChats([{ id: '1', title: 'New conversation', messages: [] }]);
       setActiveChatId('1');
       setActiveView('chat');
@@ -142,14 +217,7 @@ function App() {
   const usableModels = models.filter(m => !m.type || m.type === 'vision');
 
   if (loadingModels) {
-    return (
-      <div className="flex h-screen bg-gray-900 items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-400">Loading available models...</p>
-        </div>
-      </div>
-    );
+    return <div className="flex h-screen bg-gray-900 items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div><p className="text-gray-400">Loading available models...</p></div>;
   }
 
   return (
@@ -164,17 +232,15 @@ function App() {
         onSelectSuggestion={() => setActiveView('suggestion')}
         onSelectDownload={() => setActiveView('download')}
         onClearHistory={clearAllChats}
+        onExportChat={exportChatAsMarkdown}
+        onShareChat={getShareableLink}
         isCollapsed={isSidebarCollapsed}
         onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         {activeView === 'chat' && (
           <>
-            <ModelSelector
-              models={usableModels}
-              selected={selectedModel}
-              onChange={setSelectedModel}
-            />
+            <ModelSelector models={usableModels} selected={selectedModel} onChange={setSelectedModel} />
             <ChatArea
               messages={activeChat.messages}
               onSendStream={sendMessageStream}
@@ -183,6 +249,7 @@ function App() {
               apiUrl={API_URL}
               useRAG={useRAG}
               setUseRAG={setUseRAG}
+              onForkMessage={forkChatFromMessage}
             />
           </>
         )}
