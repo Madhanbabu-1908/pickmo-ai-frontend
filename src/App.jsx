@@ -41,9 +41,13 @@ function App() {
   const [theme, setTheme] = useState(() => loadPreference('theme', 'dark'));
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-    savePreference('theme', theme);
-  }, [theme]);
+  if (theme === 'dark') {
+    document.documentElement.classList.add('dark');
+  } else {
+    document.documentElement.classList.remove('dark');
+  }
+  localStorage.setItem('theme', theme);
+}, [theme]);
 
   useEffect(() => {
     savePreference('useRAG', useRAG);
@@ -233,7 +237,7 @@ function App() {
   }
 
   return (
-    <div className={`flex h-screen ${theme === 'dark' ? 'dark' : ''} bg-white dark:bg-gray-900 text-gray-900 dark:text-white overflow-hidden transition-colors`}>
+    <div className="flex h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-colors">
       <Sidebar
         chats={chats}
         activeChatId={activeChatId}
