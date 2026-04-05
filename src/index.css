@@ -2,35 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom Scrollbar - Premium */
+/* ========== PREMIUM SCROLLBAR ========== */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(31, 41, 55, 0.5);
+  border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4b5563;
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #6b7280;
+  background: linear-gradient(135deg, #2563eb, #7c3aed);
 }
 
-/* Smooth Scrolling */
+/* ========== SMOOTH SCROLLING ========== */
 html {
   scroll-behavior: smooth;
 }
 
-/* Animations */
+/* ========== ANIMATIONS ========== */
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(12px);
   }
   to {
     opacity: 1;
@@ -48,12 +49,13 @@ html {
 }
 
 @keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.5;
-  }
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
+
+@keyframes typing {
+  0%, 100% { opacity: 0.3; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); }
 }
 
 .animate-fadeIn {
@@ -65,95 +67,201 @@ html {
 }
 
 .animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
-/* Markdown Styling */
+.typing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3b82f6;
+  margin: 0 2px;
+  animation: typing 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* ========== MARKDOWN STYLING – PROFESSIONAL ========== */
 .prose {
   max-width: 100%;
-}
-
-.prose pre {
-  background: #1a1a2e;
-  border-radius: 12px;
-  padding: 12px;
-  overflow-x: auto;
-  border: 1px solid #2d2d3a;
-}
-
-.prose code {
-  background: #1a1a2e;
-  padding: 2px 6px;
-  border-radius: 6px;
   font-size: 0.875rem;
-  color: #60a5fa;
-}
-
-.prose p {
-  margin-bottom: 0.75rem;
   line-height: 1.6;
 }
 
+/* Code blocks */
+.prose pre {
+  background: #0a0a0f;
+  border-radius: 12px;
+  padding: 1rem;
+  overflow-x: auto;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  font-size: 0.8rem;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.prose code {
+  background: rgba(59, 130, 246, 0.15);
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #60a5fa;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.prose pre code {
+  background: transparent;
+  padding: 0;
+  color: #e2e8f0;
+}
+
+/* Tables – modern, clean */
+.prose table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.8rem;
+  border-radius: 12px;
+  border: 1px solid rgba(75, 85, 99, 0.5);
+}
+
+.prose thead {
+  background: linear-gradient(135deg, #1f2937, #111827);
+}
+
+.prose th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #e2e8f0;
+  border-bottom: 2px solid #3b82f6;
+}
+
+.prose td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(75, 85, 99, 0.3);
+}
+
+.prose tr:last-child td {
+  border-bottom: none;
+}
+
+.prose tr:hover td {
+  background: rgba(59, 130, 246, 0.05);
+}
+
+/* Headings */
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+  letter-spacing: -0.02em;
+}
+
+.prose h1 { font-size: 1.5rem; }
+.prose h2 { font-size: 1.3rem; border-left: 3px solid #3b82f6; padding-left: 0.75rem; }
+.prose h3 { font-size: 1.1rem; }
+
+/* Lists */
 .prose ul, .prose ol {
   margin-left: 1.5rem;
   margin-bottom: 0.75rem;
 }
 
+.prose li {
+  margin-bottom: 0.25rem;
+}
+
+/* Blockquotes */
 .prose blockquote {
   border-left: 3px solid #3b82f6;
   padding-left: 1rem;
   color: #9ca3af;
+  font-style: italic;
   margin: 0.75rem 0;
 }
 
-/* Table styling – ensures tables scroll horizontally on small screens */
-.prose table {
-  display: block;
-  overflow-x: auto;
-  white-space: nowrap;
-  border-collapse: collapse;
-  margin: 0.75rem 0;
+/* Links */
+.prose a {
+  color: #60a5fa;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.2s;
 }
 
-.prose th,
-.prose td {
-  border: 1px solid #4b5563;
-  padding: 0.5rem 1rem;
-  text-align: left;
+.prose a:hover {
+  border-bottom-color: #60a5fa;
 }
 
-.prose th {
-  background: #1f2937;
-  font-weight: 600;
+/* Horizontal rule */
+.prose hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #3b82f6, transparent);
+  margin: 1rem 0;
 }
 
-/* Glassmorphism Effects */
+/* ========== GLASSMORPHISM ========== */
 .glass {
   background: rgba(17, 24, 39, 0.7);
   backdrop-filter: blur(12px);
   border: 1px solid rgba(75, 85, 99, 0.3);
 }
 
-/* Typography */
-h1, h2, h3, h4, h5, h6 {
-  font-weight: 600;
-  letter-spacing: -0.02em;
+.glass-light {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
-/* Button Hover Effects */
+/* ========== TYPOGRAPHY ========== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* ========== BUTTON HOVER EFFECTS ========== */
 button {
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Selection Styling */
+button:active {
+  transform: scale(0.96);
+}
+
+/* ========== SELECTION ========== */
 ::selection {
   background: #3b82f6;
   color: white;
 }
 
-body {
-  background-color: white;
+/* ========== DARK MODE ADAPTATION ========== */
+.dark .prose {
+  color: #e5e7eb;
 }
-.dark body {
-  background-color: #111827;
+
+.dark .prose strong {
+  color: #f9fafb;
+}
+
+/* ========== TYPING INDICATOR ========== */
+.ai-typing {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 768px) {
+  .prose {
+    font-size: 0.8rem;
+  }
+  
+  .prose th, .prose td {
+    padding: 0.5rem;
+  }
 }
