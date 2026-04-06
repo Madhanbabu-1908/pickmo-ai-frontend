@@ -135,10 +135,14 @@ function App() {
 
     try {
       const response = await fetch(`${API_URL}/chat/stream`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ modelId: selectedModel, messages: cleanMessages, enableSearch })
-      });
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      modelId: selectedModel, 
+      messages: cleanMessages, 
+      enableSearch  // Pass this to backend
+    })
+  });
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let firstChunk = true;
