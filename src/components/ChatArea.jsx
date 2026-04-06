@@ -1,13 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check, Bot, User, BookOpen, Edit2, Trash2, CheckCircle, XCircle, Trash, Mic, Globe, Volume2, Settings } from 'lucide-react';
 import axios from 'axios';
 import { maskPersonalInfo } from './privacy';
 import PromptLibrary from './PromptLibrary';
 
-export default function ChatArea({ messages, onSendStream, chatId, updateChatMessages, apiUrl, useRAG, setUseRAG, onForkMessage, systemPrompt, onUpdateSystemPrompt }) {
+export default function ChatArea({ messages, onSendStream, chatId, updateChatMessages, apiUrl, useRAG, setUseRAG, systemPrompt, onUpdateSystemPrompt, theme }) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -313,7 +313,10 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     setShowSystemPromptEditor(false);
   };
 
-  // Custom markdown components with syntax highlighting
+  // Syntax highlighting theme based on current mode
+  const codeTheme = theme === 'dark' ? vscDarkPlus : vs;
+
+  // Custom markdown components with theme-aware syntax highlighting
   const MarkdownComponents = {
     code({ node, inline, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '');
@@ -333,7 +336,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
               </button>
             </div>
             <SyntaxHighlighter
-              style={vscDarkPlus}
+              style={codeTheme}
               language={match[1]}
               PreTag="div"
               customStyle={{ borderRadius: '12px', margin: '0.5rem 0', fontSize: '0.8rem' }}
@@ -344,14 +347,14 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         );
       }
       return (
-        <code className={`${className} bg-gray-800 px-1.5 py-0.5 rounded text-blue-300 text-xs`} {...props}>
+        <code className={`${className} bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-300 text-xs`} {...props}>
           {children}
         </code>
       );
     },
     table({ children }) {
       return (
-        <div className="overflow-x-auto my-3 rounded-xl border border-gray-700">
+        <div className="overflow-x-auto my-3 rounded-xl border border-gray-200 dark:border-gray-700">
           <table className="min-w-full border-collapse">
             {children}
           </table>
@@ -359,14 +362,14 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       );
     },
     th({ children }) {
-      return <th className="border border-gray-700 px-4 py-2 text-left text-sm font-semibold bg-gray-800/50">{children}</th>;
+      return <th className="border border-gray-200 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">{children}</th>;
     },
     td({ children }) {
-      return <td className="border border-gray-700 px-4 py-2 text-sm">{children}</td>;
+      return <td className="border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{children}</td>;
     },
     a({ href, children }) {
       return (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline transition">
+        <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 underline transition">
           {children}
         </a>
       );
@@ -377,10 +380,10 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
   };
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-900">
       {/* System Prompt Editor */}
-      <div className="border-b border-gray-800 px-4 py-1.5 flex justify-between items-center bg-gray-800/20">
-        <button onClick={() => setShowSystemPromptEditor(!showSystemPromptEditor)} className="text-xs text-gray-400 hover:text-blue-400 flex items-center gap-1 transition">
+      <div className="border-b border-gray-200 dark:border-gray-800 px-4 py-1.5 flex justify-between items-center bg-gray-50 dark:bg-gray-800/20">
+        <button onClick={() => setShowSystemPromptEditor(!showSystemPromptEditor)} className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 flex items-center gap-1 transition">
           <Settings size={12} /> System Prompt
         </button>
         {showSystemPromptEditor && (
@@ -389,24 +392,24 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
               value={localSystemPrompt}
               onChange={(e) => setLocalSystemPrompt(e.target.value)}
               placeholder="Custom instructions for this conversation..."
-              className="text-xs bg-gray-800 rounded-lg px-2 py-1 w-64 h-16 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="text-xs bg-white dark:bg-gray-800 rounded-lg px-2 py-1 w-64 h-16 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white"
             />
-            <button onClick={saveSystemPrompt} className="text-xs bg-blue-600 hover:bg-blue-700 px-2 py-1 rounded transition">Save</button>
+            <button onClick={saveSystemPrompt} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition">Save</button>
           </div>
         )}
       </div>
 
       {/* RAG Status */}
       {(useRAG || contextDocuments.length > 0) && (
-        <div className="bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-blue-500/30 px-4 py-2">
+        <div className="bg-blue-50 dark:bg-blue-600/20 border-b border-blue-200 dark:border-blue-500/30 px-4 py-2">
           <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-sm">
-              <BookOpen size={14} className="text-blue-400" />
-              <span className="text-blue-300">Document context active</span>
-              <span className="text-xs text-gray-400">- {contextDocuments.length} document(s)</span>
+              <BookOpen size={14} className="text-blue-500 dark:text-blue-400" />
+              <span className="text-blue-600 dark:text-blue-300">Document context active</span>
+              <span className="text-xs text-blue-500 dark:text-blue-400">- {contextDocuments.length} document(s)</span>
             </div>
             {contextDocuments.length > 0 && (
-              <button onClick={clearAllContextDocs} className="text-xs text-red-400 hover:text-red-300 transition px-2 py-0.5 rounded hover:bg-red-600/20">
+              <button onClick={clearAllContextDocs} className="text-xs text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition px-2 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-600/20">
                 <Trash size={12} className="inline mr-1" /> Clear all
               </button>
             )}
@@ -415,8 +418,8 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       )}
 
       {/* Web Search Toggle */}
-      <div className="border-b border-gray-800 px-4 py-1.5 flex justify-end items-center gap-2">
-        <label className="flex items-center gap-1 text-xs text-gray-400 cursor-pointer">
+      <div className="border-b border-gray-200 dark:border-gray-800 px-4 py-1.5 flex justify-end items-center gap-2 bg-gray-50 dark:bg-transparent">
+        <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
           <Globe size={12} />
           <span>Web search</span>
           <input type="checkbox" checked={enableWebSearch} onChange={(e) => setEnableWebSearch(e.target.checked)} className="ml-1 rounded" />
@@ -429,12 +432,12 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
           {messages.length === 0 && (
             <div className="text-center py-16">
               <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-r from-blue-500/20 to-purple-600/20 mb-6">
-                <Sparkles size={32} className="text-blue-400" />
+                <Sparkles size={32} className="text-blue-500 dark:text-blue-400" />
               </div>
-              <h1 className="text-3xl font-bold mb-3 bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <h1 className="text-3xl font-bold mb-3 bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
                 Pickmo.ai
               </h1>
-              <p className="text-gray-400 text-sm mb-6 max-w-md mx-auto">
+              <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-md mx-auto">
                 Your intelligent AI assistant. Upload documents or images, or start a conversation.
               </p>
               <div className="flex flex-wrap gap-2 justify-center">
@@ -443,10 +446,10 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                 <SuggestionChip onClick={() => setInput("Explain quantum computing")} icon="🔬" text="Explain quantum computing" />
                 <SuggestionChip onClick={() => setInput("Create a business plan")} icon="💼" text="Business plan" />
               </div>
-              <div className="mt-8 p-3 bg-gray-800/30 rounded-xl border border-gray-700/50 max-w-md mx-auto">
+              <div className="mt-8 p-3 bg-gray-100 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700/50 max-w-md mx-auto">
                 <div className="flex items-center gap-2">
-                  <Paperclip size={16} className="text-blue-400" />
-                  <p className="text-xs text-gray-300">Upload a document – it will stay active for the whole conversation</p>
+                  <Paperclip size={16} className="text-blue-500 dark:text-blue-400" />
+                  <p className="text-xs text-gray-500 dark:text-gray-300">Upload a document – it will stay active for the whole conversation</p>
                 </div>
               </div>
             </div>
@@ -457,40 +460,40 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
             const isEditing = editingMessageId === msg.id;
             return (
               <div key={msg.id || idx} className={`flex gap-3 mb-5 animate-fadeIn ${isUser ? 'justify-end' : 'justify-start'} group`}>
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm ${isUser ? 'bg-gradient-to-r from-blue-500 to-purple-600 order-2 shadow-lg' : 'bg-gradient-to-r from-purple-500 to-pink-600 shadow-lg'}`}>
-                  {isUser ? <User size={14} /> : <Bot size={14} />}
+                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-lg ${isUser ? 'bg-gradient-to-r from-blue-500 to-purple-600 order-2' : 'bg-gradient-to-r from-purple-500 to-pink-600'}`}>
+                  {isUser ? <User size={14} className="text-white" /> : <Bot size={14} className="text-white" />}
                 </div>
                 <div className={`flex-1 max-w-[85%] ${isUser ? 'order-1' : ''}`}>
                   {isEditing ? (
-                    <div className="bg-gray-800 rounded-2xl p-3 border border-blue-500/50">
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-blue-500/50 shadow-md">
                       <textarea
                         ref={editTextareaRef}
                         value={editingContent}
                         onChange={(e) => setEditingContent(e.target.value)}
                         onKeyDown={handleEditKeyDown}
-                        className="w-full bg-gray-900 rounded-xl p-2 text-sm text-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full bg-gray-100 dark:bg-gray-900 rounded-xl p-2 text-sm text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
                         rows={3}
                         placeholder="Edit your message..."
-                       />
+                      />
                       <div className="flex justify-end gap-2 mt-2">
-                        <button onClick={cancelEdit} className="px-2 py-1 text-xs text-gray-400 hover:text-white rounded-lg hover:bg-gray-700 transition">
+                        <button onClick={cancelEdit} className="px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
                           <XCircle size={12} className="inline mr-1" /> Cancel
                         </button>
-                        <button onClick={() => saveEditAndResend(msg.id, editingContent)} className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 rounded-lg transition">
+                        <button onClick={() => saveEditAndResend(msg.id, editingContent)} className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">
                           <CheckCircle size={12} className="inline mr-1" /> Send
                         </button>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <div className={`rounded-2xl px-4 py-2.5 shadow-md ${isUser ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 'bg-gray-800/70 text-gray-100 border border-gray-700/50 backdrop-blur-sm'}`}>
+                      <div className={`rounded-2xl px-4 py-2.5 shadow-md ${isUser ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 'bg-gray-100 dark:bg-gray-800/70 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700/50 backdrop-blur-sm'}`}>
                         {msg.role === 'assistant' ? (
-                          <div className="prose prose-invert prose-sm max-w-none">
+                          <div className="prose prose-sm max-w-none dark:prose-invert">
                             <ReactMarkdown components={MarkdownComponents}>
                               {msg.content || (isStreaming && idx === messages.length - 1 ? '▌' : '')}
                             </ReactMarkdown>
                             {isStreaming && idx === messages.length - 1 && msg.content && (
-                              <span className="inline-block w-1.5 h-4 bg-blue-400 ml-0.5 animate-pulse"></span>
+                              <span className="inline-block w-1.5 h-4 bg-blue-500 dark:bg-blue-400 ml-0.5 animate-pulse"></span>
                             )}
                           </div>
                         ) : (
@@ -505,36 +508,33 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                       <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
                         {isUser && (
                           <>
-                            <button onClick={() => startEditMessage(msg.id, msg.content)} className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5">
+                            <button onClick={() => startEditMessage(msg.id, msg.content)} className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition flex items-center gap-0.5">
                               <Edit2 size={10} /> Edit
                             </button>
-                            <button onClick={() => onForkMessage(msg.id, msg.content)} className="text-[10px] text-gray-500 hover:text-purple-400 transition flex items-center gap-0.5">
-                              🔀 Fork
-                            </button>
-                            <button onClick={() => deleteMessageAndAfter(msg.id)} className="text-[10px] text-gray-500 hover:text-red-400 transition flex items-center gap-0.5">
+                            <button onClick={() => deleteMessageAndAfter(msg.id)} className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition flex items-center gap-0.5">
                               <Trash2 size={10} /> Delete
                             </button>
                           </>
                         )}
                         {msg.role === 'assistant' && !isStreaming && msg.content && (
                           <>
-                            <button onClick={() => copyToClipboard(msg.content, idx, 'message')} className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5">
-                              {copiedIndex === idx ? <Check size={10} className="text-green-400" /> : <Copy size={10} />}
+                            <button onClick={() => copyToClipboard(msg.content, idx, 'message')} className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition flex items-center gap-0.5">
+                              {copiedIndex === idx ? <Check size={10} className="text-green-500" /> : <Copy size={10} />}
                               {copiedIndex === idx ? 'Copied' : 'Copy'}
                             </button>
                             {msg.content.length > 100 && (
-                              <button onClick={() => { const filename = `generated-${Date.now()}.txt`; saveToResources(msg.content, filename); }} className="text-[10px] text-gray-500 hover:text-blue-400 transition flex items-center gap-0.5">
+                              <button onClick={() => { const filename = `generated-${Date.now()}.txt`; saveToResources(msg.content, filename); }} className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition flex items-center gap-0.5">
                                 <FileText size={10} /> Save
                               </button>
                             )}
-                            <button onClick={() => speak(msg.content)} className="text-[10px] text-gray-500 hover:text-blue-400 transition">
+                            <button onClick={() => speak(msg.content)} className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition">
                               <Volume2 size={10} />
                             </button>
                             <div className="flex gap-1">
-                              <button onClick={() => setReactions(prev => ({ ...prev, [msg.id]: '👍' }))} className={`text-[10px] transition ${reactions[msg.id] === '👍' ? 'text-green-400 scale-110' : 'text-gray-500 hover:text-green-400'}`}>
+                              <button onClick={() => setReactions(prev => ({ ...prev, [msg.id]: '👍' }))} className={`text-[10px] transition ${reactions[msg.id] === '👍' ? 'text-green-500 scale-110' : 'text-gray-500 dark:text-gray-400 hover:text-green-500'}`}>
                                 👍
                               </button>
-                              <button onClick={() => setReactions(prev => ({ ...prev, [msg.id]: '👎' }))} className={`text-[10px] transition ${reactions[msg.id] === '👎' ? 'text-red-400 scale-110' : 'text-gray-500 hover:text-red-400'}`}>
+                              <button onClick={() => setReactions(prev => ({ ...prev, [msg.id]: '👎' }))} className={`text-[10px] transition ${reactions[msg.id] === '👎' ? 'text-red-500 scale-110' : 'text-gray-500 dark:text-gray-400 hover:text-red-500'}`}>
                                 👎
                               </button>
                             </div>
@@ -550,12 +550,12 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
           
           {isAiTyping && (
             <div className="flex justify-start mb-4">
-              <div className="bg-gray-800/50 rounded-2xl px-4 py-2.5">
+              <div className="bg-gray-100 dark:bg-gray-800/50 rounded-2xl px-4 py-2.5">
                 <div className="ai-typing">
                   <span className="typing-dot"></span>
                   <span className="typing-dot"></span>
                   <span className="typing-dot"></span>
-                  <span className="text-xs text-gray-400 ml-1">AI is thinking</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">AI is thinking</span>
                 </div>
               </div>
             </div>
@@ -566,15 +566,15 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
       {/* Active documents preview */}
       {contextDocuments.length > 0 && (
-        <div className="border-t border-gray-800 px-4 py-2 bg-gray-900/50">
+        <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-2 bg-gray-50 dark:bg-gray-900/50">
           <div className="max-w-3xl mx-auto">
             <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-xs text-gray-400">Active documents:</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Active documents:</span>
               {contextDocuments.map(doc => (
-                <div key={doc.id} className="bg-gray-800 rounded-lg px-2 py-1 flex items-center gap-1 text-xs border border-gray-700">
-                  <FileText size={12} className="text-blue-400" />
-                  <span className="truncate max-w-[120px]">{doc.name}</span>
-                  <button onClick={() => removeContextDocument(doc.id)} className="text-gray-400 hover:text-red-400 transition">
+                <div key={doc.id} className="bg-white dark:bg-gray-800 rounded-lg px-2 py-1 flex items-center gap-1 text-xs border border-gray-200 dark:border-gray-700 shadow-sm">
+                  <FileText size={12} className="text-blue-500 dark:text-blue-400" />
+                  <span className="truncate max-w-[120px] text-gray-700 dark:text-gray-300">{doc.name}</span>
+                  <button onClick={() => removeContextDocument(doc.id)} className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition">
                     <X size={10} />
                   </button>
                 </div>
@@ -586,14 +586,14 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
       {/* Image preview */}
       {attachedImages.length > 0 && (
-        <div className="border-t border-gray-800 px-4 py-2 bg-gray-900/50">
+        <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-2 bg-gray-50 dark:bg-gray-900/50">
           <div className="max-w-3xl mx-auto">
             <div className="flex flex-wrap gap-2">
               {attachedImages.map(img => (
                 <div key={img.id} className="relative group">
-                  <img src={img.data} alt={img.name} className="h-12 w-12 object-cover rounded-lg border border-gray-700 shadow-md" />
-                  <button onClick={() => removeImage(img.id)} className="absolute -top-1 -right-1 bg-red-600 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition">
-                    <X size={10} />
+                  <img src={img.data} alt={img.name} className="h-12 w-12 object-cover rounded-lg border border-gray-200 dark:border-gray-700 shadow-md" />
+                  <button onClick={() => removeImage(img.id)} className="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition">
+                    <X size={10} className="text-white" />
                   </button>
                 </div>
               ))}
@@ -603,7 +603,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       )}
 
       {/* Input area */}
-      <div className="border-t border-gray-800 bg-gradient-to-t from-gray-900 to-gray-900/95 p-4">
+      <div className="border-t border-gray-200 dark:border-gray-800 bg-gradient-to-t from-white to-gray-50 dark:from-gray-900 dark:to-gray-900/95 p-4">
         <div className="max-w-3xl mx-auto">
           <form onSubmit={handleSubmit} className="relative">
             <textarea
@@ -614,35 +614,35 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
               onKeyDown={handleKeyDown}
               placeholder={contextDocuments.length > 0 ? `Ask about your ${contextDocuments.length} document(s)...` : attachedImages.length > 0 ? "Ask about your image(s)..." : "Message Pickmo.ai..."}
               disabled={isStreaming}
-              className="w-full bg-gray-800/50 rounded-2xl px-4 py-3 pr-32 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none text-sm text-white placeholder-gray-400 border border-gray-700 focus:border-transparent transition-all duration-200"
+              className="w-full bg-white dark:bg-gray-800/50 rounded-2xl px-4 py-3 pr-32 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border border-gray-200 dark:border-gray-700 focus:border-transparent transition-all duration-200"
               style={{ maxHeight: '120px' }}
             />
             <div className="absolute right-2 bottom-3 flex gap-1">
               <PromptLibrary onInsertPrompt={insertPrompt} />
-              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isStreaming || uploadingFiles} className="p-1.5 text-gray-400 hover:text-blue-400 transition disabled:opacity-50 rounded-lg hover:bg-gray-700/50" title="Attach document or image">
+              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isStreaming || uploadingFiles} className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition disabled:opacity-50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50" title="Attach document or image">
                 {uploadingFiles ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
               </button>
-              <button type="button" onClick={startListening} disabled={isStreaming} className={`p-1.5 rounded-lg transition ${isListening ? 'bg-red-600 text-white' : 'text-gray-400 hover:text-blue-400'}`}>
+              <button type="button" onClick={startListening} disabled={isStreaming} className={`p-1.5 rounded-lg transition ${isListening ? 'bg-red-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400'}`}>
                 <Mic size={16} />
               </button>
-              <button type="submit" disabled={isStreaming || (!input.trim() && attachedImages.length === 0)} className="p-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-all duration-200 shadow-md">
+              <button type="submit" disabled={isStreaming || (!input.trim() && attachedImages.length === 0)} className="p-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-all duration-200 shadow-md">
                 {isStreaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
               </button>
             </div>
             <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.pdf,.doc,.docx,image/*" onChange={handleFileUpload} className="hidden" disabled={isStreaming} />
           </form>
-          <div className="flex justify-between items-center mt-2 text-[10px] text-gray-500 px-1">
+          <div className="flex justify-between items-center mt-2 text-[10px] text-gray-500 dark:text-gray-500 px-1">
             <div className="flex items-center gap-2">
-              <span>Press <kbd className="px-1 py-0.5 bg-gray-800 rounded text-xs font-mono">Enter</kbd> to send</span>
-              <span className="text-gray-600">•</span>
-              <span><kbd className="px-1 py-0.5 bg-gray-800 rounded text-xs font-mono">Shift+Enter</kbd> for new line</span>
+              <span>Press <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs font-mono">Enter</kbd> to send</span>
+              <span className="text-gray-300 dark:text-gray-600">•</span>
+              <span><kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs font-mono">Shift+Enter</kbd> for new line</span>
             </div>
             <div className="flex items-center gap-1">
               <span>⚠️</span>
               <span>Privacy: sensitive info redacted</span>
             </div>
           </div>
-          <div className="text-[10px] text-gray-500 text-center mt-1">
+          <div className="text-[10px] text-gray-500 dark:text-gray-500 text-center mt-1">
             📎 Upload documents – they stay active for the whole conversation. Use 'Clear all' to remove.
           </div>
         </div>
@@ -655,10 +655,10 @@ function SuggestionChip({ onClick, icon, text }) {
   return (
     <button
       onClick={onClick}
-      className="px-3 py-1.5 bg-gray-800/50 hover:bg-gray-800 rounded-lg text-xs transition-all duration-200 border border-gray-700 hover:border-gray-600 group"
+      className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs transition-all duration-200 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 group"
     >
       <span className="mr-1">{icon}</span>
-      <span className="text-gray-300 group-hover:text-white transition">{text}</span>
+      <span className="text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition">{text}</span>
     </button>
   );
 }
