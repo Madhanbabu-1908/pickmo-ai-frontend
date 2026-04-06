@@ -278,6 +278,7 @@ function App() {
               onForkMessage={forkChatFromMessage}
               systemPrompt={activeChat.systemPrompt}
               onUpdateSystemPrompt={updateSystemPrompt}
+              theme={theme}
             />
           </>
         )}
