@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check, Bot, User, BookOpen, Edit2, Trash2, CheckCircle, XCircle, Trash, Mic, Globe, Volume2, Settings } from 'lucide-react';
@@ -26,7 +27,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
   const [enableWebSearch, setEnableWebSearch] = useState(false);
   const [showSystemPromptEditor, setShowSystemPromptEditor] = useState(false);
   const [localSystemPrompt, setLocalSystemPrompt] = useState(systemPrompt);
-  const [searchImages, setSearchImages] = useState([]);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -64,21 +64,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     }
-  };
-
-  // Parse search images from response
-  const parseSearchImages = (content) => {
-    const regex = /<!--SEARCH_IMAGES_JSON:(\[.*?\])-->/;
-    const match = content.match(regex);
-    if (match) {
-      try {
-        const images = JSON.parse(match[1]);
-        setSearchImages(images);
-        // Remove the marker from content
-        return content.replace(regex, '');
-      } catch (e) { console.error('Failed to parse search images:', e); }
-    }
-    return content;
   };
 
   useEffect(() => {
@@ -238,7 +223,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     const userMsg = input;
     const sanitizedUserMsg = maskPersonalInfo(userMsg);
     setInput('');
-    setSearchImages([]);
 
     const contentArray = [];
     if (sanitizedUserMsg.trim()) contentArray.push({ type: 'text', text: sanitizedUserMsg });
@@ -279,55 +263,23 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     updateChatMessages(chatId, (prev) => [...prev, newUserMessage]);
     updateChatMessages(chatId, (prev) => [...prev, { role: 'assistant', content: '', id: Date.now() + 1 }]);
 
-    // Create a custom onChunk handler that parses search images
-    const handleChunk = (chunk) => {
-      // Parse any search image markers in the chunk
-      const parsedChunk = parseSearchImages(chunk);
-      if (parsedChunk) {
-        if (isAiTyping) setIsAiTyping(false);
-        updateChatMessages(chatId, (prev) => {
-          const newMessages = [...prev];
-          const currentContent = newMessages[newMessages.length - 1].content;
-          newMessages[newMessages.length - 1] = { 
-            role: 'assistant', 
-            content: currentContent + parsedChunk, 
-            id: newMessages[newMessages.length - 1].id 
-          };
-          return newMessages;
-        });
-      }
-    };
-
     let fullContent = '';
     await onSendStream(finalUserContent,
       (chunk) => {
         fullContent += chunk;
-        // Parse and display search images in UI
-        const parsed = parseSearchImages(chunk);
-        if (parsed) {
-          if (isAiTyping) setIsAiTyping(false);
-          updateChatMessages(chatId, (prev) => {
-            const newMessages = [...prev];
-            const currentContent = newMessages[newMessages.length - 1].content;
-            newMessages[newMessages.length - 1] = { 
-              role: 'assistant', 
-              content: currentContent + parsed, 
-              id: newMessages[newMessages.length - 1].id 
-            };
-            return newMessages;
-          });
-        }
+        if (isAiTyping) setIsAiTyping(false);
+        updateChatMessages(chatId, (prev) => {
+          const newMessages = [...prev];
+          newMessages[newMessages.length - 1] = { role: 'assistant', content: fullContent, id: newMessages[newMessages.length - 1].id };
+          return newMessages;
+        });
       },
       (error) => {
         console.error(error);
         setIsAiTyping(false);
         updateChatMessages(chatId, (prev) => {
           const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { 
-            role: 'assistant', 
-            content: 'I apologize, but I encountered an error. Please try again.', 
-            id: newMessages[newMessages.length - 1].id 
-          };
+          newMessages[newMessages.length - 1] = { role: 'assistant', content: 'I apologize, but I encountered an error. Please try again.', id: newMessages[newMessages.length - 1].id };
           return newMessages;
         });
       },
@@ -362,15 +314,31 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     setShowSystemPromptEditor(false);
   };
 
-  // Toggle web search button
   const toggleWebSearch = () => {
     setEnableWebSearch(!enableWebSearch);
   };
 
-  // Syntax highlighting theme based on current mode
   const codeTheme = theme === 'dark' ? vscDarkPlus : vs;
 
+  // Custom markdown components with HTML table support
   const MarkdownComponents = {
+    table: ({ children }) => (
+      <div className="overflow-x-auto my-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        <table className="min-w-full border-collapse">
+          {children}
+        </table>
+      </div>
+    ),
+    th: ({ children }) => (
+      <th className="border border-gray-200 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
+        {children}
+      </th>
+    ),
+    td: ({ children }) => (
+      <td className="border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+        {children}
+      </td>
+    ),
     code({ node, inline, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '');
       const codeText = String(children).replace(/\n$/, '');
@@ -405,21 +373,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         </code>
       );
     },
-    table({ children }) {
-      return (
-        <div className="overflow-x-auto my-3 rounded-xl border border-gray-200 dark:border-gray-700">
-          <table className="min-w-full border-collapse">
-            {children}
-          </table>
-        </div>
-      );
-    },
-    th({ children }) {
-      return <th className="border border-gray-200 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">{children}</th>;
-    },
-    td({ children }) {
-      return <td className="border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm text-gray-600 dark:text-gray-400">{children}</td>;
-    },
     a({ href, children }) {
       return (
         <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 underline transition">
@@ -430,24 +383,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     img({ src, alt }) {
       return <img src={src} alt={alt} className="max-w-full rounded-lg my-2 shadow-md" />;
     }
-  };
-
-  // Render search images if available
-  const renderSearchImages = () => {
-    if (searchImages.length === 0) return null;
-    return (
-      <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700">
-        <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">📸 Related Images</h4>
-        <div className="flex flex-wrap gap-2">
-          {searchImages.map((img, idx) => (
-            <a key={idx} href={img.src} target="_blank" rel="noopener noreferrer" className="block">
-              <img src={img.src} alt={img.alt} className="h-20 w-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition" />
-            </a>
-          ))}
-        </div>
-        <p className="text-[10px] text-gray-500 dark:text-gray-500 mt-2">Images from search results</p>
-      </div>
-    );
   };
 
   return (
@@ -488,7 +423,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         </div>
       )}
 
-      {/* Web Search Button - Replaces checkbox */}
+      {/* Web Search Button */}
       <div className="border-b border-gray-200 dark:border-gray-800 px-4 py-1.5 flex justify-end items-center gap-2 bg-gray-50 dark:bg-transparent">
         <button
           onClick={toggleWebSearch}
@@ -536,9 +471,6 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
           {messages.map((msg, idx) => {
             const isUser = msg.role === 'user';
             const isEditing = editingMessageId === msg.id;
-            // Parse search images from message content if present
-            const parsedContent = parseSearchImages(msg.content);
-            const displayContent = parsedContent || msg.content;
             
             return (
               <div key={msg.id || idx} className={`flex gap-3 mb-5 animate-fadeIn ${isUser ? 'justify-end' : 'justify-start'} group`}>
@@ -571,8 +503,11 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                       <div className={`rounded-2xl px-4 py-2.5 shadow-md ${isUser ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 'bg-gray-100 dark:bg-gray-800/70 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700/50 backdrop-blur-sm'}`}>
                         {msg.role === 'assistant' ? (
                           <div className="prose prose-sm max-w-none dark:prose-invert">
-                            <ReactMarkdown components={MarkdownComponents}>
-                              {displayContent || (isStreaming && idx === messages.length - 1 ? '▌' : '')}
+                            <ReactMarkdown
+                              rehypePlugins={[rehypeRaw]}
+                              components={MarkdownComponents}
+                            >
+                              {msg.content || (isStreaming && idx === messages.length - 1 ? '▌' : '')}
                             </ReactMarkdown>
                             {isStreaming && idx === messages.length - 1 && msg.content && (
                               <span className="inline-block w-1.5 h-4 bg-blue-500 dark:bg-blue-400 ml-0.5 animate-pulse"></span>
