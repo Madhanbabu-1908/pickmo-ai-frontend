@@ -18,6 +18,8 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^8.0.7",
     "react-syntax-highlighter": "^15.5.0"
+    "lucide-react": "^0.263.1",
+    "rehype-raw": "^7.0.0"
   },
   "devDependencies": {
     "@capacitor/android": "^5.7.8",
