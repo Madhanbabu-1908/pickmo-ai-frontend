@@ -40,14 +40,15 @@ function App() {
   const [loadingModels, setLoadingModels] = useState(true);
   const [theme, setTheme] = useState(() => loadPreference('theme', 'dark'));
 
+  // Apply theme to html element
   useEffect(() => {
-  if (theme === 'dark') {
-    document.documentElement.classList.add('dark');
-  } else {
-    document.documentElement.classList.remove('dark');
-  }
-  localStorage.setItem('theme', theme);
-}, [theme]);
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    savePreference('theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     savePreference('useRAG', useRAG);
@@ -233,11 +234,18 @@ function App() {
   const usableModels = models.filter(m => !m.type || m.type === 'vision');
 
   if (loadingModels) {
-    return <div className="flex h-screen bg-gray-900 items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div><p className="text-gray-400">Loading available models...</p></div>;
+    return (
+      <div className="flex h-screen bg-white dark:bg-gray-900 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Loading available models...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-colors">
+    <div className="flex h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-colors overflow-hidden">
       <Sidebar
         chats={chats}
         activeChatId={activeChatId}
