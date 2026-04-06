@@ -265,3 +265,28 @@ button:active {
     padding: 0.5rem;
   }
 }
+/* Fix z-index layering */
+.relative {
+  z-index: 1;
+}
+
+.z-50 {
+  z-index: 50;
+}
+
+/* Ensure dropdowns appear above chat */
+.dropdown-content {
+  z-index: 100;
+}
+
+/* Better chat container spacing */
+.max-w-3xl {
+  max-width: 48rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .max-w-3xl {
+    max-width: 95%;
+  }
+}
