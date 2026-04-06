@@ -30,9 +30,9 @@ export default function Sidebar({
   ];
 
   const SidebarContent = () => (
-    <div className={`h-full flex flex-col bg-gradient-to-b from-gray-900 to-gray-950 border-r border-gray-800 transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-72'}`}>
+    <div className={`h-full flex flex-col bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 transition-all duration-300 ${isCollapsed ? 'w-16' : 'w-72'}`}>
       {/* Brand Header */}
-      <div className={`p-4 border-b border-gray-800 ${isCollapsed ? 'px-2' : ''}`}>
+      <div className={`p-4 border-b border-gray-200 dark:border-gray-800 ${isCollapsed ? 'px-2' : ''}`}>
         <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-2'}`}>
           <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
             <Sparkles size={16} className="text-white" />
@@ -42,7 +42,7 @@ export default function Sidebar({
               <h1 className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
                 Pickmo.ai
               </h1>
-              <p className="text-[10px] text-gray-500">Free AI Chatbot</p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-500">Free AI Chatbot</p>
             </div>
           )}
         </div>
@@ -51,15 +51,15 @@ export default function Sidebar({
       {/* Collapse Toggle */}
       <button 
         onClick={onToggleCollapse}
-        className="absolute -right-3 top-20 bg-gray-800 border border-gray-700 rounded-full p-1 hover:bg-gray-700 transition-all duration-200 hidden md:block z-10"
+        className="absolute -right-3 top-20 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-full p-1 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hidden md:block z-10"
       >
-        {isCollapsed ? <ChevronRight size={12} /> : <ChevronLeft size={12} />}
+        {isCollapsed ? <ChevronRight size={12} className="text-gray-600 dark:text-gray-400" /> : <ChevronLeft size={12} className="text-gray-600 dark:text-gray-400" />}
       </button>
 
       {/* New Chat Button */}
       <button 
         onClick={() => { onNewChat(); setIsMobileOpen(false); }} 
-        className={`mx-2 mt-4 flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 p-2 rounded-xl transition-all duration-200 shadow-lg ${isCollapsed ? 'justify-center' : 'w-auto'}`}
+        className={`mx-2 mt-4 flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white p-2 rounded-xl transition-all duration-200 shadow-lg ${isCollapsed ? 'justify-center' : 'w-auto'}`}
       >
         <PlusCircle size={16} />
         {!isCollapsed && <span className="text-sm font-medium">New Chat</span>}
@@ -69,13 +69,13 @@ export default function Sidebar({
       {!isCollapsed && (
         <div className="px-2 mt-3">
           <div className="relative">
-            <Search size={12} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500" />
+            <Search size={12} className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500" />
             <input 
               type="text" 
               placeholder="Search chats..." 
               value={searchTerm} 
               onChange={(e) => setSearchTerm(e.target.value)} 
-              className="w-full bg-gray-800/50 rounded-lg pl-7 pr-2 py-1.5 text-xs text-white placeholder-gray-500 border border-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full bg-gray-50 dark:bg-gray-800/50 rounded-lg pl-7 pr-2 py-1.5 text-xs text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border border-gray-200 dark:border-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
         </div>
@@ -84,12 +84,12 @@ export default function Sidebar({
       {/* Chat History */}
       <div className="flex-1 overflow-y-auto px-2 py-3">
         {!isCollapsed && (
-          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider mb-2 px-1">
+          <div className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 px-1">
             Recent Chats
           </div>
         )}
         {filteredChats.length === 0 ? (
-          <div className={`text-[10px] text-gray-500 text-center py-4 ${isCollapsed ? 'hidden' : ''}`}>
+          <div className={`text-[10px] text-gray-400 dark:text-gray-500 text-center py-4 ${isCollapsed ? 'hidden' : ''}`}>
             No conversations found
           </div>
         ) : (
@@ -100,18 +100,18 @@ export default function Sidebar({
                 onClick={() => { onSelectChat(chat.id); setIsMobileOpen(false); }} 
                 className={`group relative px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-200 ${
                   activeChatId === chat.id 
-                    ? 'bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-l-2 border-blue-500' 
-                    : 'hover:bg-gray-800/50'
+                    ? 'bg-blue-50 dark:bg-blue-600/20 border-l-2 border-blue-500' 
+                    : 'hover:bg-gray-50 dark:hover:bg-gray-800/50'
                 } ${isCollapsed ? 'flex justify-center' : ''}`}
               >
                 <div className={`flex items-center gap-2 ${isCollapsed ? 'justify-center' : ''}`}>
-                  <MessageSquare size={12} className={`flex-shrink-0 ${activeChatId === chat.id ? 'text-blue-400' : 'text-gray-500'}`} />
+                  <MessageSquare size={12} className={`flex-shrink-0 ${activeChatId === chat.id ? 'text-blue-500 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500'}`} />
                   {!isCollapsed && (
-                    <span className="text-xs truncate font-medium">{chat.title}</span>
+                    <span className="text-xs truncate font-medium text-gray-700 dark:text-gray-300">{chat.title}</span>
                   )}
                 </div>
                 {isCollapsed && (
-                  <div className="absolute left-full ml-2 px-2 py-1 bg-gray-800 rounded-md text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg">
+                  <div className="absolute left-full ml-2 px-2 py-1 bg-white dark:bg-gray-800 rounded-md text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-lg border border-gray-200 dark:border-gray-700">
                     {chat.title}
                   </div>
                 )}
@@ -121,12 +121,12 @@ export default function Sidebar({
         )}
       </div>
 
-      {/* Bottom Menu with Dropdown */}
-      <div className="border-t border-gray-800 pt-2 pb-3 px-2">
-        {/* Theme Toggle - Always Visible */}
+      {/* Bottom Menu */}
+      <div className="border-t border-gray-200 dark:border-gray-800 pt-2 pb-3 px-2">
+        {/* Theme Toggle */}
         <button 
           onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-          className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg transition-all duration-200 text-gray-400 hover:text-white hover:bg-gray-800/50 ${isCollapsed ? 'justify-center' : ''}`}
+          className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 ${isCollapsed ? 'justify-center' : ''}`}
         >
           {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
           {!isCollapsed && <span className="text-xs">Theme</span>}
@@ -136,7 +136,7 @@ export default function Sidebar({
         <div className="relative">
           <button 
             onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg transition-all duration-200 text-gray-400 hover:text-white hover:bg-gray-800/50 ${isCollapsed ? 'justify-center' : ''}`}
+            className={`flex items-center gap-2 w-full px-2 py-1.5 rounded-lg transition-all duration-200 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800/50 ${isCollapsed ? 'justify-center' : ''}`}
           >
             <Menu size={14} />
             {!isCollapsed && <span className="text-xs flex-1 text-left">More Options</span>}
@@ -146,7 +146,7 @@ export default function Sidebar({
           {isMenuOpen && !isCollapsed && (
             <>
               <div className="fixed inset-0 z-40" onClick={() => setIsMenuOpen(false)} />
-              <div className="absolute bottom-full left-0 mb-1 w-48 bg-gray-800 rounded-lg shadow-xl border border-gray-700 z-50 overflow-hidden">
+              <div className="absolute bottom-full left-0 mb-1 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 overflow-hidden">
                 {menuItems.map((item, idx) => (
                   <button
                     key={idx}
@@ -154,7 +154,7 @@ export default function Sidebar({
                       item.action();
                       setIsMenuOpen(false);
                     }}
-                    className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors hover:bg-gray-700 ${item.danger ? 'text-red-400 hover:text-red-300' : 'text-gray-300'}`}
+                    className={`flex items-center gap-2 w-full px-3 py-2 text-xs transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${item.danger ? 'text-red-500 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'}`}
                   >
                     <item.icon size={12} />
                     <span>{item.label}</span>
@@ -173,9 +173,9 @@ export default function Sidebar({
       {/* Mobile Menu Button */}
       <button 
         onClick={toggleMobile}
-        className="fixed top-3 left-3 z-50 bg-gray-800/80 backdrop-blur-xl p-2 rounded-xl shadow-lg md:hidden border border-gray-700"
+        className="fixed top-3 left-3 z-50 bg-white dark:bg-gray-800/80 backdrop-blur-xl p-2 rounded-xl shadow-lg md:hidden border border-gray-200 dark:border-gray-700"
       >
-        {isMobileOpen ? <X size={18} /> : <Menu size={18} />}
+        {isMobileOpen ? <X size={18} className="text-gray-700 dark:text-gray-300" /> : <Menu size={18} className="text-gray-700 dark:text-gray-300" />}
       </button>
 
       {/* Desktop Sidebar */}
