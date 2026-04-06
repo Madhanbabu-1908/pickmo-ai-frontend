@@ -26,6 +26,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
   const [enableWebSearch, setEnableWebSearch] = useState(false);
   const [showSystemPromptEditor, setShowSystemPromptEditor] = useState(false);
   const [localSystemPrompt, setLocalSystemPrompt] = useState(systemPrompt);
+  const [searchImages, setSearchImages] = useState([]);
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -63,6 +64,21 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(utterance);
     }
+  };
+
+  // Parse search images from response
+  const parseSearchImages = (content) => {
+    const regex = /<!--SEARCH_IMAGES_JSON:(\[.*?\])-->/;
+    const match = content.match(regex);
+    if (match) {
+      try {
+        const images = JSON.parse(match[1]);
+        setSearchImages(images);
+        // Remove the marker from content
+        return content.replace(regex, '');
+      } catch (e) { console.error('Failed to parse search images:', e); }
+    }
+    return content;
   };
 
   useEffect(() => {
@@ -222,6 +238,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     const userMsg = input;
     const sanitizedUserMsg = maskPersonalInfo(userMsg);
     setInput('');
+    setSearchImages([]);
 
     const contentArray = [];
     if (sanitizedUserMsg.trim()) contentArray.push({ type: 'text', text: sanitizedUserMsg });
@@ -262,23 +279,55 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     updateChatMessages(chatId, (prev) => [...prev, newUserMessage]);
     updateChatMessages(chatId, (prev) => [...prev, { role: 'assistant', content: '', id: Date.now() + 1 }]);
 
+    // Create a custom onChunk handler that parses search images
+    const handleChunk = (chunk) => {
+      // Parse any search image markers in the chunk
+      const parsedChunk = parseSearchImages(chunk);
+      if (parsedChunk) {
+        if (isAiTyping) setIsAiTyping(false);
+        updateChatMessages(chatId, (prev) => {
+          const newMessages = [...prev];
+          const currentContent = newMessages[newMessages.length - 1].content;
+          newMessages[newMessages.length - 1] = { 
+            role: 'assistant', 
+            content: currentContent + parsedChunk, 
+            id: newMessages[newMessages.length - 1].id 
+          };
+          return newMessages;
+        });
+      }
+    };
+
     let fullContent = '';
     await onSendStream(finalUserContent,
       (chunk) => {
         fullContent += chunk;
-        if (isAiTyping) setIsAiTyping(false);
-        updateChatMessages(chatId, (prev) => {
-          const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { role: 'assistant', content: fullContent, id: newMessages[newMessages.length - 1].id };
-          return newMessages;
-        });
+        // Parse and display search images in UI
+        const parsed = parseSearchImages(chunk);
+        if (parsed) {
+          if (isAiTyping) setIsAiTyping(false);
+          updateChatMessages(chatId, (prev) => {
+            const newMessages = [...prev];
+            const currentContent = newMessages[newMessages.length - 1].content;
+            newMessages[newMessages.length - 1] = { 
+              role: 'assistant', 
+              content: currentContent + parsed, 
+              id: newMessages[newMessages.length - 1].id 
+            };
+            return newMessages;
+          });
+        }
       },
       (error) => {
         console.error(error);
         setIsAiTyping(false);
         updateChatMessages(chatId, (prev) => {
           const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { role: 'assistant', content: 'I apologize, but I encountered an error. Please try again.', id: newMessages[newMessages.length - 1].id };
+          newMessages[newMessages.length - 1] = { 
+            role: 'assistant', 
+            content: 'I apologize, but I encountered an error. Please try again.', 
+            id: newMessages[newMessages.length - 1].id 
+          };
           return newMessages;
         });
       },
@@ -313,10 +362,14 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     setShowSystemPromptEditor(false);
   };
 
+  // Toggle web search button
+  const toggleWebSearch = () => {
+    setEnableWebSearch(!enableWebSearch);
+  };
+
   // Syntax highlighting theme based on current mode
   const codeTheme = theme === 'dark' ? vscDarkPlus : vs;
 
-  // Custom markdown components with theme-aware syntax highlighting
   const MarkdownComponents = {
     code({ node, inline, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '');
@@ -379,6 +432,24 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     }
   };
 
+  // Render search images if available
+  const renderSearchImages = () => {
+    if (searchImages.length === 0) return null;
+    return (
+      <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700">
+        <h4 className="text-xs font-semibold text-gray-600 dark:text-gray-400 mb-2">📸 Related Images</h4>
+        <div className="flex flex-wrap gap-2">
+          {searchImages.map((img, idx) => (
+            <a key={idx} href={img.src} target="_blank" rel="noopener noreferrer" className="block">
+              <img src={img.src} alt={img.alt} className="h-20 w-20 object-cover rounded-lg border border-gray-200 dark:border-gray-700 hover:shadow-md transition" />
+            </a>
+          ))}
+        </div>
+        <p className="text-[10px] text-gray-500 dark:text-gray-500 mt-2">Images from search results</p>
+      </div>
+    );
+  };
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-900">
       {/* System Prompt Editor */}
@@ -417,13 +488,20 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         </div>
       )}
 
-      {/* Web Search Toggle */}
+      {/* Web Search Button - Replaces checkbox */}
       <div className="border-b border-gray-200 dark:border-gray-800 px-4 py-1.5 flex justify-end items-center gap-2 bg-gray-50 dark:bg-transparent">
-        <label className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+        <button
+          onClick={toggleWebSearch}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all duration-200 ${
+            enableWebSearch 
+              ? 'bg-blue-600 text-white shadow-md' 
+              : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
+          }`}
+        >
           <Globe size={12} />
-          <span>Web search</span>
-          <input type="checkbox" checked={enableWebSearch} onChange={(e) => setEnableWebSearch(e.target.checked)} className="ml-1 rounded" />
-        </label>
+          <span>Web Search</span>
+          {enableWebSearch && <span className="ml-1 text-[10px] bg-white/20 rounded-full px-1.5">ON</span>}
+        </button>
       </div>
 
       {/* Messages Container */}
@@ -458,6 +536,10 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
           {messages.map((msg, idx) => {
             const isUser = msg.role === 'user';
             const isEditing = editingMessageId === msg.id;
+            // Parse search images from message content if present
+            const parsedContent = parseSearchImages(msg.content);
+            const displayContent = parsedContent || msg.content;
+            
             return (
               <div key={msg.id || idx} className={`flex gap-3 mb-5 animate-fadeIn ${isUser ? 'justify-end' : 'justify-start'} group`}>
                 <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-lg ${isUser ? 'bg-gradient-to-r from-blue-500 to-purple-600 order-2' : 'bg-gradient-to-r from-purple-500 to-pink-600'}`}>
@@ -490,7 +572,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                         {msg.role === 'assistant' ? (
                           <div className="prose prose-sm max-w-none dark:prose-invert">
                             <ReactMarkdown components={MarkdownComponents}>
-                              {msg.content || (isStreaming && idx === messages.length - 1 ? '▌' : '')}
+                              {displayContent || (isStreaming && idx === messages.length - 1 ? '▌' : '')}
                             </ReactMarkdown>
                             {isStreaming && idx === messages.length - 1 && msg.content && (
                               <span className="inline-block w-1.5 h-4 bg-blue-500 dark:bg-blue-400 ml-0.5 animate-pulse"></span>
