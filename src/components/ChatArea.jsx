@@ -320,25 +320,42 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
   const codeTheme = theme === 'dark' ? vscDarkPlus : vs;
 
-  // Custom markdown components with HTML table support
+  // Complete Markdown components for professional rendering
   const MarkdownComponents = {
-    table: ({ children }) => (
-      <div className="overflow-x-auto my-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-        <table className="min-w-full border-collapse">
-          {children}
-        </table>
-      </div>
-    ),
-    th: ({ children }) => (
-      <th className="border border-gray-200 dark:border-gray-700 px-4 py-2 text-left text-sm font-semibold bg-gray-50 dark:bg-gray-800/50 text-gray-700 dark:text-gray-300">
+    // Headings
+    h1: ({ children }) => <h1 className="text-2xl font-bold mt-4 mb-2 text-gray-900 dark:text-white">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-xl font-semibold mt-3 mb-2 border-l-4 border-blue-500 pl-2 text-gray-800 dark:text-gray-200">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-lg font-semibold mt-2 mb-1 text-gray-800 dark:text-gray-200">{children}</h3>,
+    h4: ({ children }) => <h4 className="text-base font-semibold mt-2 mb-1 text-gray-700 dark:text-gray-300">{children}</h4>,
+    
+    // Lists
+    ul: ({ children }) => <ul className="list-disc ml-6 my-2 space-y-1">{children}</ul>,
+    ol: ({ children }) => <ol className="list-decimal ml-6 my-2 space-y-1">{children}</ol>,
+    li: ({ children }) => <li className="text-sm text-gray-700 dark:text-gray-300 mb-1">{children}</li>,
+    
+    // Text formatting
+    p: ({ children }) => <p className="mb-2 leading-relaxed text-gray-700 dark:text-gray-300">{children}</p>,
+    strong: ({ children }) => <strong className="font-bold text-blue-600 dark:text-blue-400">{children}</strong>,
+    em: ({ children }) => <em className="italic text-gray-600 dark:text-gray-400">{children}</em>,
+    
+    // Links
+    a: ({ href, children }) => (
+      <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 dark:text-blue-400 hover:underline transition">
         {children}
-      </th>
+      </a>
     ),
-    td: ({ children }) => (
-      <td className="border border-gray-200 dark:border-gray-700 px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+    
+    // Blockquotes
+    blockquote: ({ children }) => (
+      <blockquote className="border-l-4 border-blue-500 pl-4 my-2 italic text-gray-600 dark:text-gray-400">
         {children}
-      </td>
+      </blockquote>
     ),
+    
+    // Horizontal rule
+    hr: () => <hr className="my-4 border-gray-300 dark:border-gray-700" />,
+    
+    // Code blocks with syntax highlighting
     code({ node, inline, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '');
       const codeText = String(children).replace(/\n$/, '');
@@ -368,21 +385,38 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         );
       }
       return (
-        <code className={`${className} bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-300 text-xs`} {...props}>
+        <code className={`${className} bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-300 text-xs font-mono`} {...props}>
           {children}
         </code>
       );
     },
-    a({ href, children }) {
-      return (
-        <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 dark:text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 underline transition">
+    
+    // Tables with proper styling
+    table: ({ children }) => (
+      <div className="overflow-x-auto my-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
+        <table className="min-w-full border-collapse">
           {children}
-        </a>
-      );
-    },
-    img({ src, alt }) {
-      return <img src={src} alt={alt} className="max-w-full rounded-lg my-2 shadow-md" />;
-    }
+        </table>
+      </div>
+    ),
+    thead: ({ children }) => <thead className="bg-gray-50 dark:bg-gray-800/50">{children}</thead>,
+    tbody: ({ children }) => <tbody>{children}</tbody>,
+    tr: ({ children }) => <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition">{children}</tr>,
+    th: ({ children }) => (
+      <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
+        {children}
+      </th>
+    ),
+    td: ({ children }) => (
+      <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
+        {children}
+      </td>
+    ),
+    
+    // Images
+    img: ({ src, alt }) => (
+      <img src={src} alt={alt} className="max-w-full rounded-lg my-2 shadow-md" />
+    ),
   };
 
   return (
