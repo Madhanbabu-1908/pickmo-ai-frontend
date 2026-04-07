@@ -20,7 +20,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '20'
       
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -37,16 +37,51 @@ jobs:
       - name: Install dependencies
         run: npm install
       
-      - name: Build React app with production backend URL
+      - name: Build React app (with logo)
         run: |
           export VITE_API_URL=https://pickmo-ai.onrender.com/api
           npm run build
+          # Verify logo exists in build output
+          ls -la dist/
+          ls -la public/
       
       - name: Add Android platform (if needed)
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
           fi
+      
+      - name: Copy logo to Android resources
+        run: |
+          # Create icon directories if they don't exist
+          mkdir -p android/app/src/main/res/mipmap-hdpi
+          mkdir -p android/app/src/main/res/mipmap-mdpi
+          mkdir -p android/app/src/main/res/mipmap-xhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
+          
+          # Generate different sizes from the logo (using ImageMagick)
+          # Install ImageMagick
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+          
+          # Generate icons at different resolutions
+          convert public/pickmo-ai.png -resize 48x48 android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          convert public/pickmo-ai.png -resize 48x48 android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
+          
+          convert public/pickmo-ai.png -resize 72x72 android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          convert public/pickmo-ai.png -resize 72x72 android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+          
+          convert public/pickmo-ai.png -resize 96x96 android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          convert public/pickmo-ai.png -resize 96x96 android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
+          
+          convert public/pickmo-ai.png -resize 144x144 android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          convert public/pickmo-ai.png -resize 144x144 android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
+          
+          convert public/pickmo-ai.png -resize 192x192 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          convert public/pickmo-ai.png -resize 192x192 android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          
+          echo "✅ Logo icons generated for all resolutions"
       
       - name: Sync Capacitor
         run: npx cap sync
