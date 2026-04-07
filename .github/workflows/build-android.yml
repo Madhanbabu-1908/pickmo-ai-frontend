@@ -33,7 +33,9 @@ jobs:
         run: yes | sdkmanager --licenses
       
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          npm install -D @tailwindcss/typography
       
       - name: Build React app
         run: |
@@ -48,22 +50,16 @@ jobs:
       
       - name: Copy logo to Android resources
         run: |
-          # Check if logo exists
           if [ -f "public/pickmo-ai.png" ]; then
             echo "✅ Logo found: public/pickmo-ai.png"
             
-            # Create directories
             mkdir -p android/app/src/main/res/mipmap-mdpi
             mkdir -p android/app/src/main/res/mipmap-hdpi
             mkdir -p android/app/src/main/res/mipmap-xhdpi
             mkdir -p android/app/src/main/res/mipmap-xxhdpi
             mkdir -p android/app/src/main/res/mipmap-xxxhdpi
             
-            # Install ImageMagick for resizing
-            sudo apt-get update
-            sudo apt-get install -y imagemagick
-            
-            # Generate icons (use a default icon if resizing fails)
+            # Copy logo to all resolutions
             cp public/pickmo-ai.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png
             cp public/pickmo-ai.png android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
             cp public/pickmo-ai.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
