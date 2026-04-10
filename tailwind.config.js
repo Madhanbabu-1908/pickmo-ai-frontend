@@ -1,37 +1,47 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  darkMode: 'class',
   content: [
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
-      fontFamily: {
-        sans: ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+      colors: {
+        'pickmo': {
+          bg:      'var(--bg)',
+          surface: 'var(--surface)',
+          sidebar: 'var(--sidebar)',
+          input:   'var(--input)',
+          text:    'var(--text)',
+          muted:   'var(--muted)',
+        }
       },
       animation: {
-        'fadeIn': 'fadeIn 0.3s ease-out',
-        'slide-in': 'slideIn 0.3s ease-out',
-        'pulse': 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+        'cursor-blink': 'cursorBlink 1s step-end infinite',
+        'pulse-slow':   'pulseSlow 2.5s ease-in-out infinite',
+        'fade-down':    'fadeDown 0.2s ease-out both',
       },
       keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0', transform: 'translateY(10px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+        cursorBlink: {
+          '0%, 50%':   { opacity: '1' },
+          '51%, 100%': { opacity: '0' },
         },
-        slideIn: {
-          '0%': { transform: 'translateX(-100%)' },
-          '100%': { transform: 'translateX(0)' },
+        pulseSlow: {
+          '0%, 100%': { opacity: '0.7', transform: 'scale(1)' },
+          '50%':      { opacity: '1',   transform: 'scale(1.05)' },
         },
-        pulse: {
-          '0%, 100%': { opacity: '1' },
-          '50%': { opacity: '0.5' },
-        },
+        fadeDown: {
+          from: { opacity: '0', transform: 'translateY(-8px)' },
+          to:   { opacity: '1', transform: 'translateY(0)' },
+        }
       },
+      boxShadow: {
+        'glow-violet':  '0 0 20px rgba(124, 58, 237, 0.25)',
+        'glow-emerald': '0 0 16px rgba(16, 185, 129, 0.2)',
+        'glow-cyan':    '0 0 16px rgba(6, 182, 212, 0.2)',
+      }
     },
   },
-  plugins: [
-    require('@tailwindcss/typography'),
-  ],
+  plugins: [],
 }
