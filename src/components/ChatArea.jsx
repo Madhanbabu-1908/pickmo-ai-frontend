@@ -3,12 +3,27 @@ import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check, Bot, User, BookOpen, Edit2, Trash2, CheckCircle, XCircle, Trash, Mic, Globe, Volume2, Settings } from 'lucide-react';
+import {
+  Send, Loader2, Paperclip, X, FileText, Sparkles, Copy, Check,
+  Bot, User, BookOpen, Edit2, Trash2, CheckCircle, XCircle, Trash,
+  Mic, Globe, Volume2, Settings, Zap, Search, Code2, Brain
+} from 'lucide-react';
 import axios from 'axios';
 import { maskPersonalInfo } from './privacy';
 import PromptLibrary from './PromptLibrary';
 
-export default function ChatArea({ messages, onSendStream, chatId, updateChatMessages, apiUrl, useRAG, setUseRAG, systemPrompt, onUpdateSystemPrompt, theme }) {
+// Agent display config
+const AGENT_CONFIG = {
+  WebSearchAgent:  { label: 'Web Search',  icon: Globe,  color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/30' },
+  RAGAgent:        { label: 'Doc Analysis', icon: BookOpen, color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/30' },
+  CodeAgent:       { label: 'Code Expert', icon: Code2,  color: 'text-cyan-400',    bg: 'bg-cyan-500/10 border-cyan-500/30' },
+  GeneralAgent:    { label: 'Assistant',   icon: Brain,  color: 'text-blue-400',    bg: 'bg-blue-500/10 border-blue-500/30' },
+};
+
+export default function ChatArea({
+  messages, onSendStream, chatId, updateChatMessages, apiUrl,
+  useRAG, setUseRAG, systemPrompt, onUpdateSystemPrompt, theme, activeAgent
+}) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [isAiTyping, setIsAiTyping] = useState(false);
@@ -27,6 +42,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
   const [enableWebSearch, setEnableWebSearch] = useState(false);
   const [showSystemPromptEditor, setShowSystemPromptEditor] = useState(false);
   const [localSystemPrompt, setLocalSystemPrompt] = useState(systemPrompt);
+
   const messagesEndRef = useRef(null);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -76,21 +92,15 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       if (res.data) setContextDocuments(res.data);
     } catch (err) { console.error('Failed to load context docs:', err); }
   };
-  useEffect(() => {
-    loadContextDocuments();
-  }, [chatId]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isAiTyping]);
-
+  useEffect(() => { loadContextDocuments(); }, [chatId]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isAiTyping]);
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
       textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 120) + 'px';
     }
   }, [input]);
-
   useEffect(() => {
     if (editTextareaRef.current && editingMessageId) {
       editTextareaRef.current.style.height = 'auto';
@@ -101,13 +111,8 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
   const copyToClipboard = (text, index, type = 'message') => {
     navigator.clipboard.writeText(text);
-    if (type === 'message') {
-      setCopiedIndex(index);
-      setTimeout(() => setCopiedIndex(null), 2000);
-    } else {
-      setCopiedCode(index);
-      setTimeout(() => setCopiedCode(null), 2000);
-    }
+    if (type === 'message') { setCopiedIndex(index); setTimeout(() => setCopiedIndex(null), 2000); }
+    else { setCopiedCode(index); setTimeout(() => setCopiedCode(null), 2000); }
   };
 
   const saveToResources = (content, filename) => {
@@ -118,7 +123,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
 
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files);
-    if (files.length === 0) return;
+    if (!files.length) return;
     setUploadingFiles(true);
     for (const file of files) {
       if (file.type.startsWith('image/')) {
@@ -168,10 +173,8 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
     setEditingMessageId(messageId);
     setEditingContent(currentContent);
   };
-  const cancelEdit = () => {
-    setEditingMessageId(null);
-    setEditingContent('');
-  };
+  const cancelEdit = () => { setEditingMessageId(null); setEditingContent(''); };
+
   const saveEditAndResend = async (messageId, originalContent) => {
     if (!editingContent.trim()) return;
     const messageIndex = messages.findIndex(m => m.id === messageId);
@@ -190,17 +193,17 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
       (chunk) => {
         fullContent += chunk;
         updateChatMessages(chatId, (prev) => {
-          const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { role: 'assistant', content: fullContent, id: newMessages[newMessages.length - 1].id };
-          return newMessages;
+          const newMsgs = [...prev];
+          newMsgs[newMsgs.length - 1] = { role: 'assistant', content: fullContent, id: newMsgs[newMsgs.length - 1].id };
+          return newMsgs;
         });
       },
       (error) => {
         console.error(error);
         updateChatMessages(chatId, (prev) => {
-          const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { role: 'assistant', content: 'I apologize, but I encountered an error. Please try again.', id: newMessages[newMessages.length - 1].id };
-          return newMessages;
+          const newMsgs = [...prev];
+          newMsgs[newMsgs.length - 1] = { role: 'assistant', content: 'I encountered an error. Please try again.', id: newMsgs[newMsgs.length - 1].id };
+          return newMsgs;
         });
       },
       enableWebSearch
@@ -212,8 +215,7 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
   const deleteMessageAndAfter = (messageId) => {
     const messageIndex = messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) return;
-    const updatedMessages = messages.slice(0, messageIndex);
-    updateChatMessages(chatId, () => updatedMessages);
+    updateChatMessages(chatId, () => messages.slice(0, messageIndex));
   };
 
   const handleSubmit = async (e) => {
@@ -269,18 +271,18 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         fullContent += chunk;
         if (isAiTyping) setIsAiTyping(false);
         updateChatMessages(chatId, (prev) => {
-          const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { role: 'assistant', content: fullContent, id: newMessages[newMessages.length - 1].id };
-          return newMessages;
+          const newMsgs = [...prev];
+          newMsgs[newMsgs.length - 1] = { role: 'assistant', content: fullContent, id: newMsgs[newMsgs.length - 1].id };
+          return newMsgs;
         });
       },
       (error) => {
         console.error(error);
         setIsAiTyping(false);
         updateChatMessages(chatId, (prev) => {
-          const newMessages = [...prev];
-          newMessages[newMessages.length - 1] = { role: 'assistant', content: 'I apologize, but I encountered an error. Please try again.', id: newMessages[newMessages.length - 1].id };
-          return newMessages;
+          const newMsgs = [...prev];
+          newMsgs[newMsgs.length - 1] = { role: 'assistant', content: 'I encountered an error. Please try again.', id: newMsgs[newMsgs.length - 1].id };
+          return newMsgs;
         });
       },
       enableWebSearch
@@ -292,92 +294,67 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
   };
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSubmit(e); }
   };
   const handleEditKeyDown = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      saveEditAndResend(editingMessageId, editingContent);
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditAndResend(editingMessageId, editingContent); }
     if (e.key === 'Escape') cancelEdit();
   };
-
-  const insertPrompt = (text) => {
-    setInput(prev => prev + (prev ? ' ' : '') + text);
-  };
-
-  const saveSystemPrompt = () => {
-    onUpdateSystemPrompt(chatId, localSystemPrompt);
-    setShowSystemPromptEditor(false);
-  };
-
-  const toggleWebSearch = () => {
-    setEnableWebSearch(!enableWebSearch);
-  };
+  const insertPrompt = (text) => { setInput(prev => prev + (prev ? ' ' : '') + text); };
+  const saveSystemPrompt = () => { onUpdateSystemPrompt(chatId, localSystemPrompt); setShowSystemPromptEditor(false); };
 
   const codeTheme = theme === 'dark' ? vscDarkPlus : vs;
 
-  // Complete Markdown components for professional rendering
   const MarkdownComponents = {
-    // Headings
-    h1: ({ children }) => <h1 className="text-2xl font-bold mt-4 mb-2 text-gray-900 dark:text-white">{children}</h1>,
-    h2: ({ children }) => <h2 className="text-xl font-semibold mt-3 mb-2 border-l-4 border-blue-500 pl-2 text-gray-800 dark:text-gray-200">{children}</h2>,
-    h3: ({ children }) => <h3 className="text-lg font-semibold mt-2 mb-1 text-gray-800 dark:text-gray-200">{children}</h3>,
-    h4: ({ children }) => <h4 className="text-base font-semibold mt-2 mb-1 text-gray-700 dark:text-gray-300">{children}</h4>,
-    
-    // Lists
-    ul: ({ children }) => <ul className="list-disc ml-6 my-2 space-y-1">{children}</ul>,
-    ol: ({ children }) => <ol className="list-decimal ml-6 my-2 space-y-1">{children}</ol>,
-    li: ({ children }) => <li className="text-sm text-gray-700 dark:text-gray-300 mb-1">{children}</li>,
-    
-    // Text formatting
-    p: ({ children }) => <p className="mb-2 leading-relaxed text-gray-700 dark:text-gray-300">{children}</p>,
-    strong: ({ children }) => <strong className="font-bold text-blue-600 dark:text-blue-400">{children}</strong>,
-    em: ({ children }) => <em className="italic text-gray-600 dark:text-gray-400">{children}</em>,
-    
-    // Links
+    h1: ({ children }) => <h1 className="text-xl font-bold mt-5 mb-3 text-pickmo-text">{children}</h1>,
+    h2: ({ children }) => <h2 className="text-lg font-semibold mt-4 mb-2 border-l-2 border-violet-500 pl-3 text-pickmo-text">{children}</h2>,
+    h3: ({ children }) => <h3 className="text-base font-semibold mt-3 mb-1 text-pickmo-text">{children}</h3>,
+    ul: ({ children }) => <ul className="list-none ml-0 my-2 space-y-1">{children}</ul>,
+    ol: ({ children }) => <ol className="list-decimal ml-5 my-2 space-y-1">{children}</ol>,
+    li: ({ children }) => (
+      <li className="text-sm text-pickmo-muted flex gap-2 items-start">
+        <span className="mt-1.5 w-1.5 h-1.5 rounded-full bg-violet-400 flex-shrink-0" />
+        <span>{children}</span>
+      </li>
+    ),
+    p: ({ children }) => <p className="mb-2 leading-relaxed text-sm text-pickmo-text">{children}</p>,
+    strong: ({ children }) => <strong className="font-semibold text-violet-300">{children}</strong>,
+    em: ({ children }) => <em className="italic text-pickmo-muted">{children}</em>,
     a: ({ href, children }) => (
-      <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-500 dark:text-blue-400 hover:underline transition">
+      <a href={href} target="_blank" rel="noopener noreferrer"
+        className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors text-sm">
         {children}
       </a>
     ),
-    
-    // Blockquotes
     blockquote: ({ children }) => (
-      <blockquote className="border-l-4 border-blue-500 pl-4 my-2 italic text-gray-600 dark:text-gray-400">
+      <blockquote className="border-l-2 border-violet-400/50 pl-4 my-3 text-pickmo-muted bg-violet-500/5 rounded-r-lg py-2">
         {children}
       </blockquote>
     ),
-    
-    // Horizontal rule
-    hr: () => <hr className="my-4 border-gray-300 dark:border-gray-700" />,
-    
-    // Code blocks with syntax highlighting
+    hr: () => <hr className="my-4 border-white/10" />,
     code({ node, inline, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '');
       const codeText = String(children).replace(/\n$/, '');
       const codeId = `${chatId}-${Date.now()}-${Math.random()}`;
-      
       if (!inline && match) {
         return (
-          <div className="relative group my-2">
-            <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 transition">
+          <div className="relative group my-3 rounded-xl overflow-hidden border border-white/10">
+            <div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/10">
+              <span className="text-xs text-pickmo-muted font-mono">{match[1]}</span>
               <button
                 onClick={() => copyToClipboard(codeText, codeId, 'code')}
-                className="bg-gray-700 hover:bg-gray-600 rounded p-1 transition"
-                title="Copy code"
+                className="flex items-center gap-1.5 text-xs text-pickmo-muted hover:text-pickmo-text transition-colors"
               >
-                {copiedCode === codeId ? <Check size={14} className="text-green-400" /> : <Copy size={14} className="text-gray-300" />}
+                {copiedCode === codeId
+                  ? <><Check size={12} className="text-emerald-400" /><span className="text-emerald-400">Copied</span></>
+                  : <><Copy size={12} /><span>Copy</span></>}
               </button>
             </div>
             <SyntaxHighlighter
               style={codeTheme}
               language={match[1]}
               PreTag="div"
-              customStyle={{ borderRadius: '12px', margin: '0.5rem 0', fontSize: '0.8rem' }}
+              customStyle={{ margin: 0, borderRadius: 0, fontSize: '0.78rem', background: theme === 'dark' ? '#0d0d14' : '#f8f9fa' }}
             >
               {codeText}
             </SyntaxHighlighter>
@@ -385,207 +362,252 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         );
       }
       return (
-        <code className={`${className} bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded text-blue-600 dark:text-blue-300 text-xs font-mono`} {...props}>
+        <code className="bg-violet-500/15 border border-violet-500/20 px-1.5 py-0.5 rounded text-violet-300 text-xs font-mono" {...props}>
           {children}
         </code>
       );
     },
-    
-    // Tables with proper styling
     table: ({ children }) => (
-      <div className="overflow-x-auto my-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
-        <table className="min-w-full border-collapse">
-          {children}
-        </table>
+      <div className="overflow-x-auto my-4 rounded-xl border border-white/10">
+        <table className="min-w-full border-collapse">{children}</table>
       </div>
     ),
-    thead: ({ children }) => <thead className="bg-gray-50 dark:bg-gray-800/50">{children}</thead>,
-    tbody: ({ children }) => <tbody>{children}</tbody>,
-    tr: ({ children }) => <tr className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/30 transition">{children}</tr>,
-    th: ({ children }) => (
-      <th className="px-4 py-2 text-left text-sm font-semibold text-gray-700 dark:text-gray-300">
-        {children}
-      </th>
-    ),
-    td: ({ children }) => (
-      <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400">
-        {children}
-      </td>
-    ),
-    
-    // Images
+    thead: ({ children }) => <thead className="bg-white/5">{children}</thead>,
+    tbody: ({ children }) => <tbody className="divide-y divide-white/5">{children}</tbody>,
+    tr: ({ children }) => <tr className="hover:bg-white/3 transition-colors">{children}</tr>,
+    th: ({ children }) => <th className="px-4 py-2.5 text-left text-xs font-semibold text-pickmo-muted uppercase tracking-wider">{children}</th>,
+    td: ({ children }) => <td className="px-4 py-2.5 text-sm text-pickmo-text">{children}</td>,
     img: ({ src, alt }) => (
-      <img src={src} alt={alt} className="max-w-full rounded-lg my-2 shadow-md" />
+      <img src={src} alt={alt} className="max-w-full rounded-xl my-3 border border-white/10 shadow-xl" />
     ),
   };
 
+  const agentInfo = activeAgent ? AGENT_CONFIG[activeAgent] : AGENT_CONFIG.GeneralAgent;
+  const AgentIcon = agentInfo.icon;
+
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-white dark:bg-gray-900">
-      {/* System Prompt Editor */}
-      <div className="border-b border-gray-200 dark:border-gray-800 px-4 py-1.5 flex justify-between items-center bg-gray-50 dark:bg-gray-800/20">
-        <button onClick={() => setShowSystemPromptEditor(!showSystemPromptEditor)} className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 flex items-center gap-1 transition">
-          <Settings size={12} /> System Prompt
-        </button>
-        {showSystemPromptEditor && (
-          <div className="flex gap-2 items-center">
+    <div className="flex-1 flex flex-col overflow-hidden bg-pickmo-bg">
+
+      {/* ── Top Controls Bar ── */}
+      <div className="border-b border-white/8 px-4 py-2 flex items-center justify-between bg-pickmo-surface/30 backdrop-blur-sm gap-3 flex-wrap">
+        {/* Agent indicator */}
+        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${agentInfo.bg} ${agentInfo.color}`}>
+          <AgentIcon size={12} />
+          <span>{agentInfo.label}</span>
+          {isStreaming && <span className="flex gap-0.5">
+            <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '0ms' }} />
+            <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '150ms' }} />
+            <span className="w-1 h-1 rounded-full bg-current animate-bounce" style={{ animationDelay: '300ms' }} />
+          </span>}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Web Search Toggle */}
+          <button
+            onClick={() => setEnableWebSearch(!enableWebSearch)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+              enableWebSearch
+                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shadow-glow-emerald'
+                : 'bg-white/5 text-pickmo-muted border border-white/10 hover:bg-white/10 hover:text-pickmo-text'
+            }`}
+          >
+            <Search size={12} />
+            <span>Web Search</span>
+            {enableWebSearch && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+          </button>
+
+          {/* System Prompt */}
+          <button
+            onClick={() => setShowSystemPromptEditor(!showSystemPromptEditor)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-pickmo-muted border border-white/10 bg-white/5 hover:bg-white/10 hover:text-pickmo-text transition-all"
+          >
+            <Settings size={12} />
+            <span className="hidden sm:block">Instructions</span>
+          </button>
+        </div>
+      </div>
+
+      {/* ── System Prompt Editor ── */}
+      {showSystemPromptEditor && (
+        <div className="border-b border-white/8 px-4 py-3 bg-pickmo-surface/20 backdrop-blur-sm animate-fade-down">
+          <div className="max-w-3xl mx-auto flex gap-2 items-start">
             <textarea
               value={localSystemPrompt}
               onChange={(e) => setLocalSystemPrompt(e.target.value)}
-              placeholder="Custom instructions for this conversation..."
-              className="text-xs bg-white dark:bg-gray-800 rounded-lg px-2 py-1 w-64 h-16 resize-none focus:outline-none focus:ring-1 focus:ring-blue-500 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-white"
+              placeholder="Custom instructions for this conversation… e.g., 'Reply only in bullet points' or 'Act as a Python tutor'"
+              className="flex-1 bg-pickmo-input rounded-xl px-3 py-2 text-xs text-pickmo-text placeholder-pickmo-muted focus:outline-none focus:ring-1 focus:ring-violet-500/50 border border-white/10 resize-none h-16"
             />
-            <button onClick={saveSystemPrompt} className="text-xs bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition">Save</button>
-          </div>
-        )}
-      </div>
-
-      {/* RAG Status */}
-      {(useRAG || contextDocuments.length > 0) && (
-        <div className="bg-blue-50 dark:bg-blue-600/20 border-b border-blue-200 dark:border-blue-500/30 px-4 py-2">
-          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 flex-wrap">
-            <div className="flex items-center gap-2 text-sm">
-              <BookOpen size={14} className="text-blue-500 dark:text-blue-400" />
-              <span className="text-blue-600 dark:text-blue-300">Document context active</span>
-              <span className="text-xs text-blue-500 dark:text-blue-400">- {contextDocuments.length} document(s)</span>
-            </div>
-            {contextDocuments.length > 0 && (
-              <button onClick={clearAllContextDocs} className="text-xs text-red-500 dark:text-red-400 hover:text-red-600 dark:hover:text-red-300 transition px-2 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-600/20">
-                <Trash size={12} className="inline mr-1" /> Clear all
-              </button>
-            )}
+            <button onClick={saveSystemPrompt}
+              className="px-3 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs rounded-xl transition font-medium shadow-glow-violet">
+              Save
+            </button>
           </div>
         </div>
       )}
 
-      {/* Web Search Button */}
-      <div className="border-b border-gray-200 dark:border-gray-800 px-4 py-1.5 flex justify-end items-center gap-2 bg-gray-50 dark:bg-transparent">
-        <button
-          onClick={toggleWebSearch}
-          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all duration-200 ${
-            enableWebSearch 
-              ? 'bg-blue-600 text-white shadow-md' 
-              : 'bg-gray-200 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-gray-700'
-          }`}
-        >
-          <Globe size={12} />
-          <span>Web Search</span>
-          {enableWebSearch && <span className="ml-1 text-[10px] bg-white/20 rounded-full px-1.5">ON</span>}
-        </button>
-      </div>
+      {/* ── RAG Status Bar ── */}
+      {(useRAG || contextDocuments.length > 0) && (
+        <div className="border-b border-violet-500/20 px-4 py-2 bg-violet-500/5">
+          <div className="max-w-3xl mx-auto flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-xs">
+              <BookOpen size={12} className="text-violet-400" />
+              <span className="text-violet-300 font-medium">Document context active</span>
+              <span className="text-violet-400/60">· {contextDocuments.length} file(s)</span>
+            </div>
+            <button onClick={clearAllContextDocs}
+              className="text-xs text-red-400 hover:text-red-300 transition flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-red-500/10">
+              <Trash size={10} /> Clear all
+            </button>
+          </div>
+        </div>
+      )}
 
-      {/* Messages Container */}
+      {/* ── Messages Area ── */}
       <div className="flex-1 overflow-y-auto scroll-smooth">
-        <div className="max-w-3xl mx-auto px-4 py-6">
+        <div className="max-w-3xl mx-auto px-4 py-6 sm:px-6">
+
+          {/* Welcome Screen */}
           {messages.length === 0 && (
-            <div className="text-center py-16">
-              <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-r from-blue-500/20 to-purple-600/20 mb-6">
-                <Sparkles size={32} className="text-blue-500 dark:text-blue-400" />
+            <div className="text-center py-12 select-none">
+              <div className="inline-flex items-center justify-center w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-600/30 to-cyan-600/30 border border-white/10 mb-8 shadow-glow-violet">
+                <Sparkles size={32} className="text-violet-400" />
               </div>
-              <h1 className="text-3xl font-bold mb-3 bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-                Pickmo.ai
+              <h1 className="text-3xl sm:text-4xl font-bold mb-3 tracking-tight">
+                <span className="text-gradient">Pickmo.ai</span>
               </h1>
-              <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-md mx-auto">
-                Your intelligent AI assistant. Upload documents or images, or start a conversation.
+              <p className="text-pickmo-muted text-sm mb-8 max-w-sm mx-auto leading-relaxed">
+                Your intelligent AI assistant with web search, document analysis, and code expertise.
               </p>
-              <div className="flex flex-wrap gap-2 justify-center">
-                <SuggestionChip onClick={() => setInput("What can you help me with?")} icon="💬" text="What can you help me with?" />
-                <SuggestionChip onClick={() => setInput("Write a short story")} icon="📖" text="Write a story" />
-                <SuggestionChip onClick={() => setInput("Explain quantum computing")} icon="🔬" text="Explain quantum computing" />
-                <SuggestionChip onClick={() => setInput("Create a business plan")} icon="💼" text="Business plan" />
+
+              {/* Capability Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-lg mx-auto mb-8">
+                {[
+                  { icon: Globe, label: 'Web Search', desc: 'Real-time info', color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
+                  { icon: BookOpen, label: 'Documents', desc: 'Upload & analyze', color: 'text-violet-400', bg: 'bg-violet-500/10 border-violet-500/20' },
+                  { icon: Code2, label: 'Code', desc: 'Write & debug', color: 'text-cyan-400', bg: 'bg-cyan-500/10 border-cyan-500/20' },
+                  { icon: Brain, label: 'Reasoning', desc: 'Deep thinking', color: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/20' },
+                ].map(({ icon: Icon, label, desc, color, bg }) => (
+                  <div key={label} className={`rounded-xl p-3 border ${bg} flex flex-col items-center gap-1 text-center`}>
+                    <Icon size={18} className={color} />
+                    <span className={`text-xs font-semibold ${color}`}>{label}</span>
+                    <span className="text-[10px] text-pickmo-muted">{desc}</span>
+                  </div>
+                ))}
               </div>
-              <div className="mt-8 p-3 bg-gray-100 dark:bg-gray-800/30 rounded-xl border border-gray-200 dark:border-gray-700/50 max-w-md mx-auto">
-                <div className="flex items-center gap-2">
-                  <Paperclip size={16} className="text-blue-500 dark:text-blue-400" />
-                  <p className="text-xs text-gray-500 dark:text-gray-300">Upload a document – it will stay active for the whole conversation</p>
-                </div>
+
+              {/* Suggestion Chips */}
+              <div className="flex flex-wrap gap-2 justify-center">
+                {[
+                  { icon: '💬', text: 'What can you help me with?' },
+                  { icon: '💻', text: 'Write a Python web scraper' },
+                  { icon: '🌐', text: 'Latest AI news (web search)' },
+                  { icon: '📄', text: 'Upload a document to analyze' },
+                ].map(({ icon, text }) => (
+                  <button key={text} onClick={() => setInput(text)}
+                    className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl text-xs text-pickmo-muted hover:text-pickmo-text border border-white/10 hover:border-white/20 transition-all">
+                    <span>{icon}</span>
+                    <span>{text}</span>
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
+          {/* Message List */}
           {messages.map((msg, idx) => {
             const isUser = msg.role === 'user';
             const isEditing = editingMessageId === msg.id;
-            
+
             return (
-              <div key={msg.id || idx} className={`flex gap-3 mb-5 animate-fadeIn ${isUser ? 'justify-end' : 'justify-start'} group`}>
-                <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm shadow-lg ${isUser ? 'bg-gradient-to-r from-blue-500 to-purple-600 order-2' : 'bg-gradient-to-r from-purple-500 to-pink-600'}`}>
-                  {isUser ? <User size={14} className="text-white" /> : <Bot size={14} className="text-white" />}
-                </div>
-                <div className={`flex-1 max-w-[85%] ${isUser ? 'order-1' : ''}`}>
+              <div key={msg.id || idx}
+                className={`flex gap-3 mb-6 animate-fadeIn ${isUser ? 'justify-end' : 'justify-start'} group`}>
+
+                {/* Avatar */}
+                {!isUser && (
+                  <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-600 flex items-center justify-center shadow-glow-violet">
+                    <Bot size={14} className="text-white" />
+                  </div>
+                )}
+
+                <div className={`flex-1 max-w-[88%] sm:max-w-[82%] ${isUser ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
                   {isEditing ? (
-                    <div className="bg-white dark:bg-gray-800 rounded-2xl p-3 border border-blue-500/50 shadow-md">
+                    <div className="w-full bg-pickmo-surface rounded-2xl p-3 border border-violet-500/30 shadow-xl">
                       <textarea
                         ref={editTextareaRef}
                         value={editingContent}
                         onChange={(e) => setEditingContent(e.target.value)}
                         onKeyDown={handleEditKeyDown}
-                        className="w-full bg-gray-100 dark:bg-gray-900 rounded-xl p-2 text-sm text-gray-900 dark:text-white resize-none focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="w-full bg-pickmo-input rounded-xl p-2.5 text-sm text-pickmo-text resize-none focus:outline-none focus:ring-1 focus:ring-violet-500/50 border border-white/10"
                         rows={3}
-                        placeholder="Edit your message..."
+                        placeholder="Edit your message…"
                       />
                       <div className="flex justify-end gap-2 mt-2">
-                        <button onClick={cancelEdit} className="px-2 py-1 text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-white rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                          <XCircle size={12} className="inline mr-1" /> Cancel
+                        <button onClick={cancelEdit}
+                          className="px-3 py-1 text-xs text-pickmo-muted hover:text-pickmo-text rounded-lg hover:bg-white/10 transition flex items-center gap-1">
+                          <XCircle size={11} /> Cancel
                         </button>
-                        <button onClick={() => saveEditAndResend(msg.id, editingContent)} className="px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition">
-                          <CheckCircle size={12} className="inline mr-1" /> Send
+                        <button onClick={() => saveEditAndResend(msg.id, editingContent)}
+                          className="px-3 py-1 text-xs bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition flex items-center gap-1 font-medium">
+                          <CheckCircle size={11} /> Resend
                         </button>
                       </div>
                     </div>
                   ) : (
                     <>
-                      <div className={`rounded-2xl px-4 py-2.5 shadow-md ${isUser ? 'bg-gradient-to-r from-blue-600 to-blue-700 text-white' : 'bg-gray-100 dark:bg-gray-800/70 text-gray-900 dark:text-gray-100 border border-gray-200 dark:border-gray-700/50 backdrop-blur-sm'}`}>
-                        {msg.role === 'assistant' ? (
-                          <div className="prose prose-sm max-w-none dark:prose-invert">
+                      {/* Message Bubble */}
+                      {isUser ? (
+                        <div className="bg-gradient-to-br from-violet-600 to-violet-700 text-white rounded-2xl rounded-tr-sm px-4 py-3 shadow-lg max-w-full">
+                          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                            {msg.content}
+                            {msg.edited && <span className="ml-2 text-[10px] text-violet-300">(edited)</span>}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-pickmo-surface border border-white/8 rounded-2xl rounded-tl-sm px-4 py-3 shadow-lg max-w-full">
+                          <div className="prose prose-sm max-w-none">
                             <ReactMarkdown
                               rehypePlugins={[rehypeRaw]}
                               components={MarkdownComponents}
                             >
-                              {msg.content || (isStreaming && idx === messages.length - 1 ? '▌' : '')}
+                              {msg.content || (isStreaming && idx === messages.length - 1 ? '▋' : '')}
                             </ReactMarkdown>
                             {isStreaming && idx === messages.length - 1 && msg.content && (
-                              <span className="inline-block w-1.5 h-4 bg-blue-500 dark:bg-blue-400 ml-0.5 animate-pulse"></span>
+                              <span className="inline-block w-2 h-4 bg-violet-400 ml-0.5 animate-cursor-blink rounded-sm" />
                             )}
                           </div>
-                        ) : (
-                          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                            {msg.content}
-                            {msg.edited && <span className="ml-2 text-xs text-gray-400">(edited)</span>}
-                          </p>
-                        )}
-                      </div>
+                        </div>
+                      )}
 
-                      {/* Action Buttons */}
-                      <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      {/* Action Row */}
+                      <div className={`flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-200 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
                         {isUser && (
                           <>
-                            <button onClick={() => startEditMessage(msg.id, msg.content)} className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition flex items-center gap-0.5">
-                              <Edit2 size={10} /> Edit
-                            </button>
-                            <button onClick={() => deleteMessageAndAfter(msg.id)} className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition flex items-center gap-0.5">
-                              <Trash2 size={10} /> Delete
-                            </button>
+                            <ActionBtn onClick={() => startEditMessage(msg.id, msg.content)} icon={<Edit2 size={10} />} label="Edit" />
+                            <ActionBtn onClick={() => deleteMessageAndAfter(msg.id)} icon={<Trash2 size={10} />} label="Delete" danger />
                           </>
                         )}
                         {msg.role === 'assistant' && !isStreaming && msg.content && (
                           <>
-                            <button onClick={() => copyToClipboard(msg.content, idx, 'message')} className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition flex items-center gap-0.5">
-                              {copiedIndex === idx ? <Check size={10} className="text-green-500" /> : <Copy size={10} />}
-                              {copiedIndex === idx ? 'Copied' : 'Copy'}
-                            </button>
+                            <ActionBtn
+                              onClick={() => copyToClipboard(msg.content, idx, 'message')}
+                              icon={copiedIndex === idx ? <Check size={10} className="text-emerald-400" /> : <Copy size={10} />}
+                              label={copiedIndex === idx ? 'Copied' : 'Copy'}
+                            />
                             {msg.content.length > 100 && (
-                              <button onClick={() => { const filename = `generated-${Date.now()}.txt`; saveToResources(msg.content, filename); }} className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition flex items-center gap-0.5">
-                                <FileText size={10} /> Save
-                              </button>
+                              <ActionBtn
+                                onClick={() => saveToResources(msg.content, `response-${Date.now()}.txt`)}
+                                icon={<FileText size={10} />}
+                                label="Save"
+                              />
                             )}
-                            <button onClick={() => speak(msg.content)} className="text-[10px] text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition">
-                              <Volume2 size={10} />
-                            </button>
-                            <div className="flex gap-1">
-                              <button onClick={() => setReactions(prev => ({ ...prev, [msg.id]: '👍' }))} className={`text-[10px] transition ${reactions[msg.id] === '👍' ? 'text-green-500 scale-110' : 'text-gray-500 dark:text-gray-400 hover:text-green-500'}`}>
+                            <ActionBtn onClick={() => speak(msg.content)} icon={<Volume2 size={10} />} label="Speak" />
+                            <div className="flex gap-1 ml-1">
+                              <button onClick={() => setReactions(prev => ({ ...prev, [msg.id]: '👍' }))}
+                                className={`text-sm transition-transform ${reactions[msg.id] === '👍' ? 'scale-125' : 'opacity-60 hover:opacity-100 hover:scale-110'}`}>
                                 👍
                               </button>
-                              <button onClick={() => setReactions(prev => ({ ...prev, [msg.id]: '👎' }))} className={`text-[10px] transition ${reactions[msg.id] === '👎' ? 'text-red-500 scale-110' : 'text-gray-500 dark:text-gray-400 hover:text-red-500'}`}>
+                              <button onClick={() => setReactions(prev => ({ ...prev, [msg.id]: '👎' }))}
+                                className={`text-sm transition-transform ${reactions[msg.id] === '👎' ? 'scale-125' : 'opacity-60 hover:opacity-100 hover:scale-110'}`}>
                                 👎
                               </button>
                             </div>
@@ -595,18 +617,32 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
                     </>
                   )}
                 </div>
+
+                {/* User Avatar */}
+                {isUser && (
+                  <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-gradient-to-br from-slate-600 to-slate-700 flex items-center justify-center border border-white/10">
+                    <User size={14} className="text-white/80" />
+                  </div>
+                )}
               </div>
             );
           })}
-          
+
+          {/* Typing Indicator */}
           {isAiTyping && (
-            <div className="flex justify-start mb-4">
-              <div className="bg-gray-100 dark:bg-gray-800/50 rounded-2xl px-4 py-2.5">
-                <div className="ai-typing">
-                  <span className="typing-dot"></span>
-                  <span className="typing-dot"></span>
-                  <span className="typing-dot"></span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 ml-1">AI is thinking</span>
+            <div className="flex justify-start mb-4 gap-3">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-cyan-600 flex items-center justify-center flex-shrink-0">
+                <Bot size={14} className="text-white" />
+              </div>
+              <div className="bg-pickmo-surface border border-white/8 rounded-2xl rounded-tl-sm px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <div className="flex gap-1">
+                    {[0, 150, 300].map(delay => (
+                      <span key={delay} className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-bounce"
+                        style={{ animationDelay: `${delay}ms` }} />
+                    ))}
+                  </div>
+                  <span className="text-xs text-pickmo-muted">Thinking…</span>
                 </div>
               </div>
             </div>
@@ -615,86 +651,108 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
         </div>
       </div>
 
-      {/* Active documents preview */}
+      {/* ── Document Chips ── */}
       {contextDocuments.length > 0 && (
-        <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-2 bg-gray-50 dark:bg-gray-900/50">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex flex-wrap gap-2 items-center">
-              <span className="text-xs text-gray-500 dark:text-gray-400">Active documents:</span>
-              {contextDocuments.map(doc => (
-                <div key={doc.id} className="bg-white dark:bg-gray-800 rounded-lg px-2 py-1 flex items-center gap-1 text-xs border border-gray-200 dark:border-gray-700 shadow-sm">
-                  <FileText size={12} className="text-blue-500 dark:text-blue-400" />
-                  <span className="truncate max-w-[120px] text-gray-700 dark:text-gray-300">{doc.name}</span>
-                  <button onClick={() => removeContextDocument(doc.id)} className="text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition">
-                    <X size={10} />
-                  </button>
-                </div>
-              ))}
-            </div>
+        <div className="border-t border-white/8 px-4 py-2 bg-pickmo-surface/20">
+          <div className="max-w-3xl mx-auto flex flex-wrap gap-2 items-center">
+            <span className="text-xs text-pickmo-muted">Context:</span>
+            {contextDocuments.map(doc => (
+              <div key={doc.id}
+                className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-pickmo-muted hover:border-white/20 transition-all group">
+                <FileText size={10} className="text-violet-400" />
+                <span className="truncate max-w-[100px]">{doc.name}</span>
+                <button onClick={() => removeContextDocument(doc.id)}
+                  className="opacity-0 group-hover:opacity-100 text-pickmo-muted hover:text-red-400 transition-all ml-0.5">
+                  <X size={10} />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Image preview */}
+      {/* ── Image Previews ── */}
       {attachedImages.length > 0 && (
-        <div className="border-t border-gray-200 dark:border-gray-800 px-4 py-2 bg-gray-50 dark:bg-gray-900/50">
-          <div className="max-w-3xl mx-auto">
-            <div className="flex flex-wrap gap-2">
-              {attachedImages.map(img => (
-                <div key={img.id} className="relative group">
-                  <img src={img.data} alt={img.name} className="h-12 w-12 object-cover rounded-lg border border-gray-200 dark:border-gray-700 shadow-md" />
-                  <button onClick={() => removeImage(img.id)} className="absolute -top-1 -right-1 bg-red-500 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition">
-                    <X size={10} className="text-white" />
-                  </button>
-                </div>
-              ))}
-            </div>
+        <div className="border-t border-white/8 px-4 py-2 bg-pickmo-surface/20">
+          <div className="max-w-3xl mx-auto flex flex-wrap gap-2">
+            {attachedImages.map(img => (
+              <div key={img.id} className="relative group">
+                <img src={img.data} alt={img.name} className="h-14 w-14 object-cover rounded-xl border border-white/10 shadow-lg" />
+                <button onClick={() => removeImage(img.id)}
+                  className="absolute -top-1.5 -right-1.5 bg-red-500 hover:bg-red-600 rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-all shadow-lg">
+                  <X size={10} className="text-white" />
+                </button>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Input area */}
-      <div className="border-t border-gray-200 dark:border-gray-800 bg-gradient-to-t from-white to-gray-50 dark:from-gray-900 dark:to-gray-900/95 p-4">
+      {/* ── Input Area ── */}
+      <div className="border-t border-white/8 bg-pickmo-surface/50 backdrop-blur-xl p-4">
         <div className="max-w-3xl mx-auto">
-          <form onSubmit={handleSubmit} className="relative">
+          <div className="relative flex items-end gap-2 bg-pickmo-input rounded-2xl border border-white/10 focus-within:border-violet-500/40 focus-within:shadow-glow-violet transition-all duration-300 px-3 py-3">
             <textarea
               ref={textareaRef}
               rows="1"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={contextDocuments.length > 0 ? `Ask about your ${contextDocuments.length} document(s)...` : attachedImages.length > 0 ? "Ask about your image(s)..." : "Message Pickmo.ai..."}
+              placeholder={
+                contextDocuments.length > 0
+                  ? `Ask about your ${contextDocuments.length} document(s)…`
+                  : enableWebSearch
+                    ? 'Search the web…'
+                    : 'Message Pickmo.ai…'
+              }
               disabled={isStreaming}
-              className="w-full bg-white dark:bg-gray-800/50 rounded-2xl px-4 py-3 pr-32 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 border border-gray-200 dark:border-gray-700 focus:border-transparent transition-all duration-200"
+              className="flex-1 bg-transparent focus:outline-none disabled:opacity-50 resize-none text-sm text-pickmo-text placeholder-pickmo-muted leading-relaxed min-h-[24px]"
               style={{ maxHeight: '120px' }}
             />
-            <div className="absolute right-2 bottom-3 flex gap-1">
+
+            {/* Actions */}
+            <div className="flex items-center gap-1 flex-shrink-0">
               <PromptLibrary onInsertPrompt={insertPrompt} />
-              <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isStreaming || uploadingFiles} className="p-1.5 text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400 transition disabled:opacity-50 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/50" title="Attach document or image">
-                {uploadingFiles ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+
+              {/* Attach */}
+              <button type="button" onClick={() => fileInputRef.current?.click()}
+                disabled={isStreaming || uploadingFiles}
+                className="p-1.5 text-pickmo-muted hover:text-pickmo-text hover:bg-white/10 rounded-lg transition disabled:opacity-40"
+                title="Attach file or image">
+                {uploadingFiles ? <Loader2 size={15} className="animate-spin" /> : <Paperclip size={15} />}
               </button>
-              <button type="button" onClick={startListening} disabled={isStreaming} className={`p-1.5 rounded-lg transition ${isListening ? 'bg-red-500 text-white' : 'text-gray-500 dark:text-gray-400 hover:text-blue-500 dark:hover:text-blue-400'}`}>
-                <Mic size={16} />
+
+              {/* Mic */}
+              <button type="button" onClick={startListening} disabled={isStreaming}
+                className={`p-1.5 rounded-lg transition ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-pickmo-muted hover:text-pickmo-text hover:bg-white/10'} disabled:opacity-40`}>
+                <Mic size={15} />
               </button>
-              <button type="submit" disabled={isStreaming || (!input.trim() && attachedImages.length === 0)} className="p-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white disabled:opacity-50 disabled:cursor-not-allowed rounded-lg transition-all duration-200 shadow-md">
-                {isStreaming ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
+
+              {/* Send */}
+              <button
+                onClick={handleSubmit}
+                disabled={isStreaming || (!input.trim() && attachedImages.length === 0)}
+                className="p-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl transition-all shadow-glow-violet disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none ml-0.5"
+              >
+                {isStreaming ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
               </button>
             </div>
-            <input ref={fileInputRef} type="file" multiple accept=".txt,.md,.pdf,.doc,.docx,image/*" onChange={handleFileUpload} className="hidden" disabled={isStreaming} />
-          </form>
-          <div className="flex justify-between items-center mt-2 text-[10px] text-gray-500 dark:text-gray-500 px-1">
-            <div className="flex items-center gap-2">
-              <span>Press <kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs font-mono">Enter</kbd> to send</span>
-              <span className="text-gray-300 dark:text-gray-600">•</span>
-              <span><kbd className="px-1 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-xs font-mono">Shift+Enter</kbd> for new line</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span>⚠️</span>
-              <span>Privacy: sensitive info redacted</span>
-            </div>
+
+            <input ref={fileInputRef} type="file" multiple
+              accept=".txt,.md,.pdf,.doc,.docx,image/*"
+              onChange={handleFileUpload} className="hidden" disabled={isStreaming} />
           </div>
-          <div className="text-[10px] text-gray-500 dark:text-gray-500 text-center mt-1">
-            📎 Upload documents – they stay active for the whole conversation. Use 'Clear all' to remove.
+
+          {/* Footer hint */}
+          <div className="flex justify-between items-center mt-2 px-1">
+            <p className="text-[10px] text-pickmo-muted">
+              <kbd className="px-1.5 py-0.5 bg-white/8 rounded text-[9px] font-mono border border-white/10">Enter</kbd> to send ·{' '}
+              <kbd className="px-1.5 py-0.5 bg-white/8 rounded text-[9px] font-mono border border-white/10">Shift+Enter</kbd> for new line
+            </p>
+            <p className="text-[10px] text-pickmo-muted flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              PII protected · Responsible AI
+            </p>
           </div>
         </div>
       </div>
@@ -702,14 +760,16 @@ export default function ChatArea({ messages, onSendStream, chatId, updateChatMes
   );
 }
 
-function SuggestionChip({ onClick, icon, text }) {
+// Micro action button
+function ActionBtn({ onClick, icon, label, danger = false }) {
   return (
-    <button
-      onClick={onClick}
-      className="px-3 py-1.5 bg-gray-100 dark:bg-gray-800/50 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg text-xs transition-all duration-200 border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 group"
-    >
-      <span className="mr-1">{icon}</span>
-      <span className="text-gray-700 dark:text-gray-300 group-hover:text-gray-900 dark:group-hover:text-white transition">{text}</span>
+    <button onClick={onClick}
+      className={`flex items-center gap-1 text-[10px] px-2 py-1 rounded-lg transition-all ${
+        danger
+          ? 'text-pickmo-muted hover:text-red-400 hover:bg-red-500/10'
+          : 'text-pickmo-muted hover:text-pickmo-text hover:bg-white/8'
+      }`}>
+      {icon} <span>{label}</span>
     </button>
   );
 }
