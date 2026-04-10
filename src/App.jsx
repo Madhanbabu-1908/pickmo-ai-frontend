@@ -8,7 +8,7 @@ import HelpSupport from './components/HelpSupport';
 import Suggestion from './components/Suggestion';
 import Download from './components/Download';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:10000/api';
 
 const loadPreference = (key, defaultValue) => {
   const saved = localStorage.getItem(`pickmo_${key}`);
@@ -39,8 +39,8 @@ function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => loadPreference('sidebarCollapsed', false));
   const [loadingModels, setLoadingModels] = useState(true);
   const [theme, setTheme] = useState(() => loadPreference('theme', 'dark'));
+  const [activeAgent, setActiveAgent] = useState(null);
 
-  // Apply theme to html element
   useEffect(() => {
     if (theme === 'dark') {
       document.documentElement.classList.add('dark');
@@ -50,12 +50,8 @@ function App() {
     savePreference('theme', theme);
   }, [theme]);
 
-  useEffect(() => {
-    savePreference('useRAG', useRAG);
-  }, [useRAG]);
-  useEffect(() => {
-    savePreference('sidebarCollapsed', isSidebarCollapsed);
-  }, [isSidebarCollapsed]);
+  useEffect(() => { savePreference('useRAG', useRAG); }, [useRAG]);
+  useEffect(() => { savePreference('sidebarCollapsed', isSidebarCollapsed); }, [isSidebarCollapsed]);
 
   useEffect(() => {
     axios.get(`${API_URL}/models`).then(res => {
@@ -114,6 +110,7 @@ function App() {
   const sendMessageStream = async (userContent, onChunk, onError, enableSearch = false) => {
     const activeChat = chats.find(c => c.id === activeChatId);
     let context = '';
+
     if (useRAG && typeof userContent === 'string') {
       try {
         const ragRes = await axios.post(`${API_URL}/rag/search`, { query: userContent, chatId: activeChatId });
@@ -135,26 +132,41 @@ function App() {
 
     try {
       const response = await fetch(`${API_URL}/chat/stream`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      modelId: selectedModel, 
-      messages: cleanMessages, 
-      enableSearch  // Pass this to backend
-    })
-  });
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modelId: selectedModel,
+          messages: cleanMessages,
+          enableSearch,
+          chatId: activeChatId
+        })
+      });
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let firstChunk = true;
+      let buffer = '';
+
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value);
-        if (firstChunk && activeChat.title === 'New conversation' && typeof userContent === 'string') {
-          generateChatTitle(activeChatId, userContent);
+        buffer += chunk;
+
+        // Extract agent metadata from first chunk
+        if (firstChunk) {
+          const agentMatch = buffer.match(/<!--AGENT:([^>]+)-->/);
+          if (agentMatch) {
+            setActiveAgent(agentMatch[1]);
+            buffer = buffer.replace(/<!--AGENT:[^>]+-->/, '');
+          }
+          if (activeChat.title === 'New conversation' && typeof userContent === 'string') {
+            generateChatTitle(activeChatId, userContent);
+          }
           firstChunk = false;
         }
-        onChunk(chunk);
+
+        onChunk(buffer);
+        buffer = '';
       }
     } catch (err) {
       onError(err);
@@ -167,26 +179,7 @@ function App() {
     setActiveChatId(newId);
     setActiveView('chat');
     setUseRAG(false);
-  };
-
-  const forkChatFromMessage = (messageId, newContent) => {
-    const originalChat = chats.find(c => c.id === activeChatId);
-    if (!originalChat) return;
-    const messageIndex = originalChat.messages.findIndex(m => m.id === messageId);
-    if (messageIndex === -1) return;
-    const newChatId = Date.now().toString();
-    const truncatedMessages = originalChat.messages.slice(0, messageIndex + 1);
-    truncatedMessages[messageIndex].content = newContent;
-    truncatedMessages[messageIndex].edited = true;
-    const newChat = {
-      id: newChatId,
-      title: `${originalChat.title} (fork)`,
-      messages: truncatedMessages,
-      systemPrompt: originalChat.systemPrompt
-    };
-    setChats(prev => [newChat, ...prev]);
-    setActiveChatId(newChatId);
-    setActiveView('chat');
+    setActiveAgent(null);
   };
 
   const exportChatAsMarkdown = () => {
@@ -222,6 +215,7 @@ function App() {
       setActiveChatId('1');
       setActiveView('chat');
       setUseRAG(false);
+      setActiveAgent(null);
       localStorage.removeItem('generatedDocuments');
     }
   };
@@ -239,21 +233,23 @@ function App() {
 
   if (loadingModels) {
     return (
-      <div className="flex h-screen bg-white dark:bg-gray-900 items-center justify-center">
+      <div className="flex h-screen bg-pickmo-bg items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading available models...</p>
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center mx-auto mb-6 shadow-glow animate-pulse-slow">
+            <span className="text-2xl">✦</span>
+          </div>
+          <p className="text-pickmo-muted text-sm font-medium tracking-wide">Initializing Pickmo.ai…</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen bg-white dark:bg-gray-900 text-gray-900 dark:text-white transition-colors overflow-hidden">
+    <div className="flex h-screen bg-pickmo-bg text-pickmo-text transition-colors overflow-hidden">
       <Sidebar
         chats={chats}
         activeChatId={activeChatId}
-        onSelectChat={(id) => { setActiveChatId(id); setActiveView('chat'); setUseRAG(false); }}
+        onSelectChat={(id) => { setActiveChatId(id); setActiveView('chat'); setUseRAG(false); setActiveAgent(null); }}
         onNewChat={newChat}
         onSelectResources={() => setActiveView('resources')}
         onSelectHelp={() => setActiveView('help')}
@@ -270,7 +266,12 @@ function App() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {activeView === 'chat' && (
           <>
-            <ModelSelector models={usableModels} selected={selectedModel} onChange={setSelectedModel} />
+            <ModelSelector
+              models={usableModels}
+              selected={selectedModel}
+              onChange={setSelectedModel}
+              activeAgent={activeAgent}
+            />
             <ChatArea
               messages={activeChat.messages}
               onSendStream={sendMessageStream}
@@ -279,10 +280,10 @@ function App() {
               apiUrl={API_URL}
               useRAG={useRAG}
               setUseRAG={setUseRAG}
-              onForkMessage={forkChatFromMessage}
               systemPrompt={activeChat.systemPrompt}
               onUpdateSystemPrompt={updateSystemPrompt}
               theme={theme}
+              activeAgent={activeAgent}
             />
           </>
         )}
