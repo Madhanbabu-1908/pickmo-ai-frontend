@@ -137,6 +137,7 @@ export default function Sidebar({
     )}
   </div>
 ))}
+  </div>
 
       {/* Bottom Controls */}
       <div className="border-t border-white/8 pt-2 pb-3 px-2 space-y-0.5">
