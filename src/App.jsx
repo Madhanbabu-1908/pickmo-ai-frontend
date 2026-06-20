@@ -220,6 +220,21 @@ function App() {
     }
   };
 
+const deleteChat = (chatId) => {
+  setChats(prev => {
+    const remaining = prev.filter(c => c.id !== chatId);
+    if (remaining.length === 0) {
+      const newId = Date.now().toString();
+      if (activeChatId === chatId) setActiveChatId(newId);
+      return [{ id: newId, title: 'New conversation', messages: [], systemPrompt: '' }];
+    }
+    if (activeChatId === chatId) {
+      setActiveChatId(remaining[0].id);
+    }
+    return remaining;
+  });
+};
+
   const updateSystemPrompt = (chatId, prompt) => {
     setChats(prev => prev.map(c => c.id === chatId ? { ...c, systemPrompt: prompt } : c));
   };
@@ -256,6 +271,7 @@ function App() {
         onSelectSuggestion={() => setActiveView('suggestion')}
         onSelectDownload={() => setActiveView('download')}
         onClearHistory={clearAllChats}
+        onDeleteChat={deleteChat}
         onExportChat={exportChatAsMarkdown}
         onShareChat={getShareableLink}
         isCollapsed={isSidebarCollapsed}
