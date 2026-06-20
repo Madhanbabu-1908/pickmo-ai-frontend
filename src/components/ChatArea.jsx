@@ -73,14 +73,40 @@ export default function ChatArea({
     }
   };
 
-  const speak = (text) => {
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 0.9;
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(utterance);
-    }
-  };
+  const stripMarkdownForSpeech = (text) => {
+  return text
+    .replace(/<!--[\s\S]*?-->/g, '')                  // remove HTML comments (agent tags, image tags)
+    .replace(/```[\s\S]*?```/g, ' code block omitted ') // code blocks
+    .replace(/`([^`]+)`/g, '$1')                       // inline code
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')          // images -> alt text
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')           // links -> link text
+    .replace(/^#{1,6}\s+/gm, '')                        // headings
+    .replace(/\*\*([^*]+)\*\*/g, '$1')                 // bold
+    .replace(/\*([^*]+)\*/g, '$1')                     // italic
+    .replace(/__([^_]+)__/g, '$1')                     // bold underscore
+    .replace(/_([^_]+)_/g, '$1')                       // italic underscore
+    .replace(/~~([^~]+)~~/g, '$1')                     // strikethrough
+    .replace(/^>\s?/gm, '')                             // blockquotes
+    .replace(/^[-*+]\s+/gm, '')                         // bullet points
+    .replace(/^\d+\.\s+/gm, '')                        // numbered lists
+    .replace(/\[\d+\]/g, '')                            // citation numbers like [1]
+    .replace(/📚.*Sources:[\s\S]*$/i, '')               // drop the entire Sources section
+    .replace(/[#*_~`]/g, '')                            // any leftover stray symbols
+    .replace(/\n{2,}/g, '. ')                           // collapse blank lines into pauses
+    .replace(/\n/g, ' ')                                // remaining newlines -> space
+    .replace(/\s{2,}/g, ' ')                            // collapse extra spaces
+    .trim();
+};
+
+const speak = (text) => {
+  if ('speechSynthesis' in window) {
+    const cleanText = stripMarkdownForSpeech(text);
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.rate = 0.9;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }
+};
 
   useEffect(() => {
     localStorage.setItem(`reactions_${chatId}`, JSON.stringify(reactions));
