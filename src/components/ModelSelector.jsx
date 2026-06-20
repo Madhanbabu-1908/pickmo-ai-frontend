@@ -81,7 +81,7 @@ export default function ModelSelector({ models, selected, onChange, activeAgent 
               />
             </div>
 
-            <div className="max-h-72 overflow-y-auto custom-scrollbar">
+            <div className="max-h-[50vh] overflow-y-auto custom-scrollbar">
               {/* Groq group */}
               {groqModels.length > 0 && (
                 <ModelGroup label="Groq · Fast inference" models={groqModels} selected={selected}
