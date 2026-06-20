@@ -40,7 +40,7 @@ function App() {
   const [loadingModels, setLoadingModels] = useState(true);
   const [theme, setTheme] = useState(() => loadPreference('theme', 'dark'));
   const [activeAgent, setActiveAgent] = useState(null);
-
+  const [uploadedDocs, setUploadedDocs] = useState([]);
   useEffect(() => {
   if (theme === 'light') {
     document.documentElement.classList.add('light');
@@ -208,6 +208,12 @@ function App() {
     navigator.clipboard.writeText(url);
     alert('Shareable link copied to clipboard!');
   };
+  
+  const handleDocUpload = (doc) => {
+  setUploadedDocs(prev => [...prev, doc]);
+  setActiveView('chat');
+  setUseRAG(true);
+  };
 
   const clearAllChats = () => {
     if (window.confirm('Delete all chat history? This cannot be undone.')) {
@@ -300,10 +306,13 @@ const deleteChat = (chatId) => {
               onUpdateSystemPrompt={updateSystemPrompt}
               theme={theme}
               activeAgent={activeAgent}
+              modelOptions={usableModels}
+              uploadedDocs={uploadedDocs}
+              onRemoveDoc={(id) => setUploadedDocs(prev => prev.filter(d => d.id !== id))}
             />
           </>
         )}
-        {activeView === 'resources' && <Resources apiUrl={API_URL} />}
+        {activeView === 'resources' && <Resources onUploadSuccess={handleDocUpload} />}
         {activeView === 'help' && <HelpSupport apiUrl={API_URL} />}
         {activeView === 'suggestion' && <Suggestion apiUrl={API_URL} />}
         {activeView === 'download' && <Download />}
