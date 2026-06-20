@@ -42,13 +42,13 @@ function App() {
   const [activeAgent, setActiveAgent] = useState(null);
 
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-    savePreference('theme', theme);
-  }, [theme]);
+  if (theme === 'light') {
+    document.documentElement.classList.add('light');
+  } else {
+    document.documentElement.classList.remove('light');
+  }
+  savePreference('theme', theme);
+}, [theme]);
 
   useEffect(() => { savePreference('useRAG', useRAG); }, [useRAG]);
   useEffect(() => { savePreference('sidebarCollapsed', isSidebarCollapsed); }, [isSidebarCollapsed]);
