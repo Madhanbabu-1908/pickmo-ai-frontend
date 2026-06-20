@@ -65,49 +65,50 @@ export default function ModelSelector({ models, selected, onChange, activeAgent 
         </button>
 
         {isOpen && (
-          <div
-  ref={dropdownRef}
-  className="absolute top-full left-0 mt-2 w-[min(20rem,calc(100vw-2rem))] bg-pickmo-surface border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[70vh] flex flex-col"
->
-            {/* Search */}
-            <div className="p-2.5 border-b border-white/8">
-              <input
-                type="text"
-                placeholder="Search models…"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-pickmo-text placeholder-pickmo-muted focus:outline-none focus:ring-1 focus:ring-violet-500/40"
-                autoFocus
-              />
-            </div>
+  <>
+    <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+    <div
+      ref={dropdownRef}
+      className="absolute top-full left-0 mt-2 w-[min(20rem,calc(100vw-2rem))] bg-pickmo-surface border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden max-h-[70vh] flex flex-col"
+    >
+      {/* Search */}
+      <div className="p-2.5 border-b border-white/8">
+        <input
+          type="text"
+          placeholder="Search models…"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-1.5 text-xs text-pickmo-text placeholder-pickmo-muted focus:outline-none focus:ring-1 focus:ring-violet-500/40"
+          autoFocus
+        />
+      </div>
 
-            <div className="max-h-[50vh] overflow-y-auto custom-scrollbar">
-              {/* Groq group */}
-              {groqModels.length > 0 && (
-                <ModelGroup label="Groq · Fast inference" models={groqModels} selected={selected}
-                  hoveredModel={hoveredModel} setHoveredModel={setHoveredModel}
-                  handleSelect={handleSelect} formatContext={formatContext} />
-              )}
-              {/* OpenRouter group */}
-              {orModels.length > 0 && (
-                <ModelGroup label="OpenRouter · Extended" models={orModels} selected={selected}
-                  hoveredModel={hoveredModel} setHoveredModel={setHoveredModel}
-                  handleSelect={handleSelect} formatContext={formatContext} />
-              )}
-              {filteredModels.length === 0 && (
-                <div className="px-4 py-6 text-center text-pickmo-muted text-xs">No models found</div>
-              )}
-            </div>
-
-            <div className="px-3 py-2 border-t border-white/8 flex items-center justify-between">
-              <span className="text-[10px] text-pickmo-muted">{models.length} free models</span>
-              <div className="flex items-center gap-1 text-[10px] text-emerald-400">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span>All free</span>
-              </div>
-            </div>
-          </div>
+      <div className="max-h-[50vh] overflow-y-auto custom-scrollbar">
+        {groqModels.length > 0 && (
+          <ModelGroup label="Groq · Fast inference" models={groqModels} selected={selected}
+            hoveredModel={hoveredModel} setHoveredModel={setHoveredModel}
+            handleSelect={handleSelect} formatContext={formatContext} />
         )}
+        {orModels.length > 0 && (
+          <ModelGroup label="OpenRouter · Extended" models={orModels} selected={selected}
+            hoveredModel={hoveredModel} setHoveredModel={setHoveredModel}
+            handleSelect={handleSelect} formatContext={formatContext} />
+        )}
+        {filteredModels.length === 0 && (
+          <div className="px-4 py-6 text-center text-pickmo-muted text-xs">No models found</div>
+        )}
+      </div>
+
+      <div className="px-3 py-2 border-t border-white/8 flex items-center justify-between">
+        <span className="text-[10px] text-pickmo-muted">{models.length} free models</span>
+        <div className="flex items-center gap-1 text-[10px] text-emerald-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+          <span>All free</span>
+        </div>
+      </div>
+    </div>
+  </>
+)}
       </div>
 
       {/* Right side: Agent badge + model count */}
