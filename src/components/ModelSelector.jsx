@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import { Cpu, ChevronDown, Info, Zap, Globe, Code2, Brain, BookOpen } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 
@@ -20,6 +21,15 @@ export default function ModelSelector({ models, selected, onChange, activeAgent 
     model.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     model.id.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+
+useEffect(() => {
+  if (isOpen && buttonRef.current) {
+    const rect = buttonRef.current.getBoundingClientRect();
+    setDropdownPos({ top: rect.bottom + 8, left: rect.left });
+  }
+}, [isOpen]);
 
   const groqModels = filteredModels.filter(m => m.provider === 'groq');
   const orModels = filteredModels.filter(m => m.provider !== 'groq');
@@ -64,12 +74,13 @@ export default function ModelSelector({ models, selected, onChange, activeAgent 
           <ChevronDown size={11} className={`text-pickmo-muted transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
         </button>
 
-        {isOpen && (
+        {isOpen && createPortal(
   <>
     <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
     <div
       ref={dropdownRef}
-      className="absolute top-full left-0 mt-2 w-[min(20rem,calc(100vw-2rem))] bg-pickmo-surface border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden max-h-[70vh] flex flex-col"
+      style={{ position: 'fixed', top: dropdownPos.top, left: dropdownPos.left }}
+      className="w-[min(20rem,calc(100vw-2rem))] bg-pickmo-surface border border-white/10 rounded-2xl shadow-2xl z-[60] overflow-hidden max-h-[70vh] flex flex-col"
     >
       {/* Search */}
       <div className="p-2.5 border-b border-white/8">
@@ -107,7 +118,8 @@ export default function ModelSelector({ models, selected, onChange, activeAgent 
         </div>
       </div>
     </div>
-  </>
+  </>,
+  document.body
 )}
       </div>
 
