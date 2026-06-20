@@ -8,7 +8,7 @@ import { useState } from 'react';
 export default function Sidebar({
   chats, activeChatId, onSelectChat, onNewChat, onSelectResources, onSelectHelp,
   onSelectSuggestion, onSelectDownload, onClearHistory, onExportChat, onShareChat,
-  isCollapsed, onToggleCollapse, theme, setTheme
+  onDeleteChat, isCollapsed, onToggleCollapse, theme, setTheme
 }) {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -102,23 +102,41 @@ export default function Sidebar({
           <p className="text-[10px] text-pickmo-muted text-center py-6">No conversations found</p>
         )}
         {filteredChats.map(chat => (
-          <div
-            key={chat.id}
-            onClick={() => { onSelectChat(chat.id); setIsMobileOpen(false); }}
-            className={`group relative px-2.5 py-2 rounded-xl cursor-pointer transition-all duration-150 ${
-              activeChatId === chat.id
-                ? 'bg-violet-600/20 border border-violet-500/30'
-                : 'hover:bg-white/5 border border-transparent'
-            } ${isCollapsed ? 'flex justify-center' : ''}`}
-          >
-            <div className={`flex items-center gap-2.5 ${isCollapsed ? 'justify-center' : ''}`}>
-              <MessageSquare size={12} className={`flex-shrink-0 ${activeChatId === chat.id ? 'text-violet-400' : 'text-pickmo-muted'}`} />
-              {!isCollapsed && (
-                <span className={`text-xs truncate leading-tight ${activeChatId === chat.id ? 'text-pickmo-text font-medium' : 'text-pickmo-muted'}`}>
-                  {chat.title}
-                </span>
-              )}
-            </div>
+  <div
+    key={chat.id}
+    onClick={() => { onSelectChat(chat.id); setIsMobileOpen(false); }}
+    className={`group relative px-2.5 py-2 rounded-xl cursor-pointer transition-all duration-150 ${
+      activeChatId === chat.id
+        ? 'bg-violet-600/20 border border-violet-500/30'
+        : 'hover:bg-white/5 border border-transparent'
+    } ${isCollapsed ? 'flex justify-center' : ''}`}
+  >
+    <div className={`flex items-center gap-2.5 ${isCollapsed ? 'justify-center' : ''}`}>
+      <MessageSquare size={12} className={`flex-shrink-0 ${activeChatId === chat.id ? 'text-violet-400' : 'text-pickmo-muted'}`} />
+      {!isCollapsed && (
+        <span className={`text-xs truncate leading-tight flex-1 ${activeChatId === chat.id ? 'text-pickmo-text font-medium' : 'text-pickmo-muted'}`}>
+          {chat.title}
+        </span>
+      )}
+      {!isCollapsed && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (window.confirm(`Delete "${chat.title}"?`)) onDeleteChat(chat.id);
+          }}
+          className="opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-red-500/20 text-pickmo-muted hover:text-red-400 transition-all flex-shrink-0"
+        >
+          <Trash2 size={12} />
+        </button>
+      )}
+    </div>
+    {isCollapsed && (
+      <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-pickmo-surface border border-white/10 rounded-lg text-[11px] text-pickmo-text whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
+        {chat.title}
+      </div>
+    )}
+  </div>
+))}
             {/* Tooltip for collapsed */}
             {isCollapsed && (
               <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-pickmo-surface border border-white/10 rounded-lg text-[11px] text-pickmo-text whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
