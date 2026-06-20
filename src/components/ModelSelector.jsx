@@ -153,8 +153,8 @@ function ModelGroup({ label, models, selected, hoveredModel, setHoveredModel, ha
 
           {/* Hover tooltip */}
           {hoveredModel === model.id && (
-            <div className="absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50">
-              <div className="bg-pickmo-surface border border-white/10 rounded-xl shadow-2xl p-3 w-48 text-[10px] space-y-1">
+  <div className="hidden sm:block absolute left-full top-1/2 -translate-y-1/2 ml-2 z-50">
+    <div className="bg-pickmo-surface border border-white/10 rounded-xl shadow-2xl p-3 w-48 text-[10px] space-y-1">
                 <div className="flex items-center gap-1 text-pickmo-muted mb-1.5">
                   <Info size={8} />
                   <span className="font-semibold">Model Details</span>
