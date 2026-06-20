@@ -325,7 +325,7 @@ const speak = (text) => {
           return newMsgs;
         });
       },
-      enableWebSearch
+      enableWebSearch,
       uploadedDocs.map(d => d.id)
     );
 
