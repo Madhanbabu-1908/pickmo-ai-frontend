@@ -564,7 +564,7 @@ export default function ChatArea({
                         </div>
                       ) : (
                         <div className="bg-pickmo-surface border border-white/8 rounded-2xl rounded-tl-sm px-4 py-3 shadow-lg max-w-full">
-                          <div <div className="prose prose-sm max-w-none break-words">
+                          <div className="prose prose-sm max-w-none break-words">
                             <ReactMarkdown
                               rehypePlugins={[rehypeRaw]}
                               components={MarkdownComponents}
