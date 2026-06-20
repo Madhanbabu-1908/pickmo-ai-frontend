@@ -66,9 +66,9 @@ export default function ModelSelector({ models, selected, onChange, activeAgent 
 
         {isOpen && (
           <div
-            ref={dropdownRef}
-            className="absolute top-full left-0 mt-2 w-80 bg-pickmo-surface border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden"
-          >
+  ref={dropdownRef}
+  className="absolute top-full left-0 mt-2 w-[min(20rem,calc(100vw-2rem))] bg-pickmo-surface border border-white/10 rounded-2xl shadow-2xl z-50 overflow-hidden max-h-[70vh] flex flex-col"
+>
             {/* Search */}
             <div className="p-2.5 border-b border-white/8">
               <input
