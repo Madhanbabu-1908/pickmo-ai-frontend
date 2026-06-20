@@ -22,7 +22,9 @@ const AGENT_CONFIG = {
 
 export default function ChatArea({
   messages, onSendStream, chatId, updateChatMessages, apiUrl,
-  useRAG, setUseRAG, systemPrompt, onUpdateSystemPrompt, theme, activeAgent
+  useRAG, setUseRAG, systemPrompt, onUpdateSystemPrompt, theme, activeAgent,
+  uploadedDocs = [],          // ✅ ADD THIS
+  onRemoveDoc                 // ✅ ADD THIS
 }) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
@@ -119,7 +121,19 @@ const speak = (text) => {
     } catch (err) { console.error('Failed to load context docs:', err); }
   };
 
-  useEffect(() => { loadContextDocuments(); }, [chatId]);
+  useEffect(() => { 
+  loadContextDocuments(); 
+}, [chatId]);
+  useEffect(() => {
+  if (uploadedDocs.length > 0) {
+    setContextDocuments(prev => {
+      const existingIds = new Set(prev.map(d => d.id));
+      const newDocs = uploadedDocs.filter(d => !existingIds.has(d.id));
+      return newDocs.length ? [...prev, ...newDocs] : prev;
+    });
+    if (!useRAG) setUseRAG(true);
+  }
+}, [uploadedDocs]);
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages, isAiTyping]);
   useEffect(() => {
     if (textareaRef.current) {
@@ -312,6 +326,7 @@ const speak = (text) => {
         });
       },
       enableWebSearch
+      uploadedDocs.map(d => d.id)
     );
 
     setAttachedImages([]);
@@ -687,7 +702,7 @@ const speak = (text) => {
                 className="flex items-center gap-1.5 bg-white/5 border border-white/10 rounded-lg px-2 py-1 text-xs text-pickmo-muted hover:border-white/20 transition-all group">
                 <FileText size={10} className="text-violet-400" />
                 <span className="truncate max-w-[100px]">{doc.name}</span>
-                <button onClick={() => removeContextDocument(doc.id)}
+                <button onClick={() => {  removeContextDocument(doc.id);  onRemoveDoc?.(doc.id); }}
                   className="opacity-0 group-hover:opacity-100 text-pickmo-muted hover:text-red-400 transition-all ml-0.5">
                   <X size={10} />
                 </button>
