@@ -321,11 +321,11 @@ export default function ChatArea({
     strong: ({ children }) => <strong className="font-semibold text-violet-300">{children}</strong>,
     em: ({ children }) => <em className="italic text-pickmo-muted">{children}</em>,
     a: ({ href, children }) => (
-      <a href={href} target="_blank" rel="noopener noreferrer"
-        className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors text-sm">
-        {children}
-      </a>
-    ),
+  <a href={href} target="_blank" rel="noopener noreferrer"
+    className="text-cyan-400 hover:text-cyan-300 underline underline-offset-2 transition-colors text-sm break-all">
+    {children}
+  </a>
+),
     blockquote: ({ children }) => (
       <blockquote className="border-l-2 border-violet-400/50 pl-4 my-3 text-pickmo-muted bg-violet-500/5 rounded-r-lg py-2">
         {children}
@@ -564,7 +564,7 @@ export default function ChatArea({
                         </div>
                       ) : (
                         <div className="bg-pickmo-surface border border-white/8 rounded-2xl rounded-tl-sm px-4 py-3 shadow-lg max-w-full">
-                          <div className="prose prose-sm max-w-none">
+                          <div <div className="prose prose-sm max-w-none break-words">
                             <ReactMarkdown
                               rehypePlugins={[rehypeRaw]}
                               components={MarkdownComponents}
