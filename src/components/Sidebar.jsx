@@ -137,15 +137,6 @@ export default function Sidebar({
     )}
   </div>
 ))}
-            {/* Tooltip for collapsed */}
-            {isCollapsed && (
-              <div className="absolute left-full ml-3 px-2.5 py-1.5 bg-pickmo-surface border border-white/10 rounded-lg text-[11px] text-pickmo-text whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 shadow-xl">
-                {chat.title}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
 
       {/* Bottom Controls */}
       <div className="border-t border-white/8 pt-2 pb-3 px-2 space-y-0.5">
